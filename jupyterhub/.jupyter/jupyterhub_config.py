@@ -122,5 +122,10 @@ if idle_timeout and int(idle_timeout):
             'name': 'backup-users',
             'admin': True,
             'command': ['backup-user-details', '--backups=/opt/app-root/notebooks/backups', '--interval=30'],
-        }
+        },
+	{
+	    'name': 'dask-cluster',
+	    'url': 'https://%s-cm:8080' % jupyterhub_name,
+	    'api_token': 'super-secret',
+	}
     ]
