@@ -12,7 +12,7 @@ prefix = os.environ.get('JUPYTERHUB_SERVICE_PREFIX', '/')
 auth = HubAuth(api_token=os.environ['JUPYTERHUB_API_TOKEN'],
         cookie_cache_max_age=60)
 
-app = Flask(__name__)
+application = Flask(__name__)
 
 @decorator
 def authenticated(wrapped, instance, args, kwargs):
@@ -32,7 +32,7 @@ def authenticated(wrapped, instance, args, kwargs):
         # Request to login url on failed authentication.
         return redirect(auth.login_url + '?next=%s' % quote(request.path))
 
-@app.route(prefix)
+@application.route(prefix)
 @authenticated
 def whoami(user):
     return Response(json.dumps(user, indent=1, sort_keys=True),
