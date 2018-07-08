@@ -1,10 +1,11 @@
 import json
 import os
+
 from urllib.parse import quote
 
 from flask import Flask, redirect, request, Response
-
 from jupyterhub.services.auth import HubAuth
+from wrapt import decorator
 
 prefix = os.environ.get('JUPYTERHUB_SERVICE_PREFIX', '/')
 
@@ -13,7 +14,7 @@ auth = HubAuth(api_token=os.environ['JUPYTERHUB_API_TOKEN'],
 
 app = Flask(__name__)
 
-@wrapt.decorator
+@decorator
 def authenticated(wrapped, instance, args, kwargs):
     cookie = request.cookies.get(auth.cookie_name)
     token = request.headers.get(auth.auth_header_name)
