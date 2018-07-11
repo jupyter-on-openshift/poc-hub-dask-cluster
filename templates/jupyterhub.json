@@ -21,6 +21,11 @@
             "required": true
         },
         {
+            "name": "DASK_NAME",
+            "value": "dask",
+            "required": true
+        },
+        {
             "name": "NOTEBOOK_REPOSITORY_URL",
             "value": "https://github.com/jakevdp/PythonDataScienceHandbook",
             "required": true
@@ -1184,7 +1189,7 @@
             "kind": "ImageStream",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-cm-img",
+                "name": "${DASK_NAME}-cm-img",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1194,7 +1199,7 @@
             "kind": "BuildConfig",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-cm-img",
+                "name": "${DASK_NAME}-cm-img",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1228,7 +1233,7 @@
                 "output": {
                     "to": {
                         "kind": "ImageStreamTag",
-                        "name": "${JUPYTERHUB_NAME}-cm-img:latest"
+                        "name": "${DASK_NAME}-cm-img:latest"
                     }
                 }
             }
@@ -1237,7 +1242,7 @@
             "kind": "DeploymentConfig",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-cm",
+                "name": "${DASK_NAME}-cm",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1259,7 +1264,7 @@
                             ],
                             "from": {
                                 "kind": "ImageStreamTag",
-                                "name": "${JUPYTERHUB_NAME}-cm-img:latest"
+                                "name": "${DASK_NAME}-cm-img:latest"
                             }
                         }
                     }
@@ -1267,20 +1272,20 @@
                 "replicas": 1,
                 "selector": {
                     "app": "${JUPYTERHUB_NAME}",
-                    "deploymentconfig": "${JUPYTERHUB_NAME}-cm"
+                    "deploymentconfig": "${DASK_NAME}-cm"
                 },
                 "template": {
                     "metadata": {
                         "labels": {
                             "app": "${JUPYTERHUB_NAME}",
-                            "deploymentconfig": "${JUPYTERHUB_NAME}-cm"
+                            "deploymentconfig": "${DASK_NAME}-cm"
                         }
                     },
                     "spec": {
                         "containers": [
                             {
                                 "name": "manager",
-                                "image": "${JUPYTERHUB_IMAGE}-cm",
+                                "image": "${DASK_NAME}-cm",
                                 "ports": [
                                     {
                                         "containerPort": 8080,
@@ -1311,7 +1316,7 @@
             "kind": "Service",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-cm",
+                "name": "${DASK_NAME}-cm",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1327,7 +1332,7 @@
                 ],
                 "selector": {
                     "app": "${JUPYTERHUB_NAME}",
-                    "deploymentconfig": "${JUPYTERHUB_NAME}-cm"
+                    "deploymentconfig": "${DASK_NAME}-cm"
                 }
             }
         }
