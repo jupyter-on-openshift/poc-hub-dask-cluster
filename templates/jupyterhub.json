@@ -105,6 +105,12 @@
             "generate": "expression",
             "from": "[a-f0-9]{32}",
             "required": true
+        },
+        {
+            "name": "CLUSTER_MANAGER_API_TOKEN",
+            "generate": "expression",
+            "from": "[a-f0-9]{32}",
+            "required": true
         }
     ],
     "objects": [
@@ -948,6 +954,10 @@
                                     {
                                         "name": "PROXY_ADDRESS_FORWARDING",
                                         "value": "true"
+                                    },
+                                    {
+                                        "name": "CLUSTER_MANAGER_API_TOKEN",
+                                        "value": "${CLUSTER_MANAGER_API_TOKEN}"
                                     }
                                 ]
                             }
@@ -1167,6 +1177,153 @@
                 "selector": {
                     "app": "${JUPYTERHUB_NAME}",
                     "deploymentconfig": "${KEYCLOAK_NAME}-db"
+                }
+            }
+        },
+        {
+            "kind": "ImageStream",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "${JUPYTERHUB_NAME}-cm-img",
+                "labels": {
+                    "app": "${JUPYTERHUB_NAME}"
+                }
+            }
+        },
+        {
+            "kind": "BuildConfig",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "${JUPYTERHUB_NAME}-cm-img",
+                "labels": {
+                    "app": "${JUPYTERHUB_NAME}"
+                }
+            },
+            "spec": {
+                "triggers": [
+                    {
+                        "type": "ConfigChange"
+                    },
+                    {
+                        "type": "ImageChange"
+                    }
+                ],
+                "source": {
+                    "type": "Git",
+                    "git": {
+                        "uri": "https://github.com/jupyter-on-openshift/poc-hub-dask-cluster.git"
+                    },
+                    "contextDir": "cluster"
+                },
+                "strategy": {
+                    "type": "Source",
+                    "sourceStrategy": {
+                        "from": {
+                            "kind": "ImageStreamTag",
+                            "name": "python:3.5",
+                            "namespace": "openshift"
+                        }
+                    }
+                },
+                "output": {
+                    "to": {
+                        "kind": "ImageStreamTag",
+                        "name": "${JUPYTERHUB_NAME}-cm-img:latest"
+                    }
+                }
+            }
+        },
+        {
+            "kind": "DeploymentConfig",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "${JUPYTERHUB_NAME}-cm",
+                "labels": {
+                    "app": "${JUPYTERHUB_NAME}"
+                }
+            },
+            "spec": {
+                "strategy": {
+                    "type": "Rolling"
+                },
+                "triggers": [
+                    {
+                        "type": "ConfigChange"
+                    },
+                    {
+                        "type": "ImageChange",
+                        "imageChangeParams": {
+                            "automatic": true,
+                            "containerNames": [
+                                "manager"
+                            ],
+                            "from": {
+                                "kind": "ImageStreamTag",
+                                "name": "${JUPYTERHUB_NAME}-cm-img:latest"
+                            }
+                        }
+                    }
+                ],
+                "replicas": 1,
+                "selector": {
+                    "app": "${JUPYTERHUB_NAME}",
+                    "deploymentconfig": "${JUPYTERHUB_NAME}-cm"
+                },
+                "template": {
+                    "metadata": {
+                        "labels": {
+                            "app": "${JUPYTERHUB_NAME}",
+                            "deploymentconfig": "${JUPYTERHUB_NAME}-cm"
+                        }
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "name": "manager",
+                                "image": "${JUPYTERHUB_IMAGE}-cm",
+                                "ports": [
+                                    {
+                                        "containerPort": 8080,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "env": [
+                                    {
+                                        "name": "JUPYTERHUB_SERVICE_PREFIX",
+                                        "value": "/hub/services/"
+                                    },
+                                    {
+                                        "name": "JUPYTERHUB_API_TOKEN",
+                                        "value": "${CLUSTER_MANAGER_API_TOKEN}"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            "kind": "Service",
+            "apiVersion": "v1",
+            "metadata": {
+                "name": "${JUPYTERHUB_NAME}-cm",
+                "labels": {
+                    "app": "${JUPYTERHUB_NAME}"
+                }
+            },
+            "spec": {
+                "ports": [
+                    {
+                        "name": "8080-tcp",
+                        "protocol": "TCP",
+                        "port": 8080,
+                        "targetPort": 8080
+                    }
+                ],
+                "selector": {
+                    "app": "${JUPYTERHUB_NAME}",
+                    "deploymentconfig": "${JUPYTERHUB_NAME}-cm"
                 }
             }
         }

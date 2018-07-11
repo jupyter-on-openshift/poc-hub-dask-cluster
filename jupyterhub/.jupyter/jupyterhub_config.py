@@ -126,6 +126,6 @@ if idle_timeout and int(idle_timeout):
 	{
 	    'name': 'dask-cluster',
 	    'url': 'http://%s-cm:8080' % jupyterhub_name,
-	    'api_token': 'super-secret',
+	    'api_token': os.environ['CLUSTER_MANAGER_API_TOKEN'],
 	}
     ]
