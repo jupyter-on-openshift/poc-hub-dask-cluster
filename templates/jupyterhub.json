@@ -1290,11 +1290,15 @@
                                 "env": [
                                     {
                                         "name": "JUPYTERHUB_SERVICE_PREFIX",
-                                        "value": "/hub/services/"
+                                        "value": "/services/dask-cluster/"
                                     },
                                     {
                                         "name": "JUPYTERHUB_API_TOKEN",
                                         "value": "${CLUSTER_MANAGER_API_TOKEN}"
+                                    },
+                                    {
+                                        "name": "JUPYTERHUB_API_URL",
+                                        "value": "http://${APPLICATION_NAME}:8081/hub/api"
                                     }
                                 ]
                             }
