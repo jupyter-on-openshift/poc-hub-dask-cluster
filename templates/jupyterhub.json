@@ -414,6 +414,10 @@
                                         "value": "${NOTEBOOK_VOLUME_SIZE}"
                                     },
                                     {
+                                        "name": "DASK_SERVICE_NAME",
+                                        "value": "${DASK_NAME}"
+                                    },
+                                    {
                                         "name": "CLUSTER_MANAGER_API_TOKEN",
                                         "value": "${CLUSTER_MANAGER_API_TOKEN}"
                                     }
