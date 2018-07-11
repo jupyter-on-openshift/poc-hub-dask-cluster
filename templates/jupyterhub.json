@@ -1307,7 +1307,7 @@
                                     },
                                     {
                                         "name": "JUPYTERHUB_API_URL",
-                                        "value": "http://${APPLICATION_NAME}:8081/hub/api"
+                                        "value": "http://${JUPYTERHUB_NAME}:8081/hub/api"
                                     }
                                 ]
                             }
