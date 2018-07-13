@@ -1409,7 +1409,7 @@
 				"env": [
 				    {
 					"name": "DASK_SCHEDULER_ADDRESS",
-					"value": "${JUPYTERHUB_NAME}-scheduler:8786"
+					"value": "${DASK_NAME}-scheduler:8786"
 				    }
 				]
 			    }
