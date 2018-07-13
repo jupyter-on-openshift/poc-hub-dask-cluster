@@ -1299,7 +1299,7 @@
                                 "env": [
                                     {
                                         "name": "JUPYTERHUB_SERVICE_PREFIX",
-                                        "value": "/services/dask-cluster/"
+                                        "value": "/services/dask-controller/"
                                     },
                                     {
                                         "name": "JUPYTERHUB_API_TOKEN",
