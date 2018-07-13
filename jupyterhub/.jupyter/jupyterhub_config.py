@@ -117,8 +117,8 @@ dask_api_token = os.environ.get('DASK_CONTROLLER_API_TOKEN')
 if dask_service_name and dask_api_token:
     c.JupyterHub.services.extend([
 	{
-	    'name': 'dask-cluster',
-	    'url': 'http://%s-cm:8080' % dask_service_name,
+	    'name': 'dask-controller',
+	    'url': 'http://%s-controller:8080' % dask_service_name,
 	    'api_token': dask_api_token,
 	}
     ])
