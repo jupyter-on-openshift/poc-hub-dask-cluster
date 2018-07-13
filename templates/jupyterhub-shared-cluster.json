@@ -148,7 +148,7 @@
             "kind": "RoleBinding",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-edit",
+                "name": "${JUPYTERHUB_NAME}-rb-edit",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
