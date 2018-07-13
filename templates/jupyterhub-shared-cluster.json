@@ -1222,7 +1222,7 @@
                     "git": {
                         "uri": "https://github.com/jupyter-on-openshift/poc-hub-dask-cluster.git"
                     },
-                    "contextDir": "cluster"
+                    "contextDir": "controller"
                 },
                 "strategy": {
                     "type": "Source",
