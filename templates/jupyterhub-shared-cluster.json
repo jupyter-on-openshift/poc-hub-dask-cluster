@@ -1356,7 +1356,7 @@
 	    "metadata": {
 		"name": "${DASK_NAME}-worker",
 		"labels": {
-		    "app": "${APPLICATION_NAME}"
+		    "app": "${JUPYTERHUB_NAME}"
 		}
 	    },
 	    "spec": {
@@ -1376,20 +1376,20 @@
 			    ],
 			    "from": {
 				"kind": "ImageStreamTag",
-				"name": "${APPLICATION_NAME}-notebook-img:latest"
+				"name": "${JUPYTERHUB_NAME}-notebook-img:latest"
 			    }
 			}
 		    }
 		],
 		"replicas": "${{DASK_WORKER_REPLICAS}}",
 		"selector": {
-		    "app": "${APPLICATION_NAME}",
+		    "app": "${JUPYTERHUB_NAME}",
 		    "deploymentconfig": "${DASK_NAME}-worker"
 		},
 		"template": {
 		    "metadata": {
 			"labels": {
-			    "app": "${APPLICATION_NAME}",
+			    "app": "${JUPYTERHUB_NAME}",
 			    "deploymentconfig": "${DASK_NAME}-worker"
 			}
 		    },
@@ -1397,7 +1397,7 @@
 			"containers": [
 			    {
 				"name": "worker",
-				"image": "${APPLICATION_NAME}-notebook-img:latest",
+				"image": "${JUPYTERHUB_NAME}-notebook-img:latest",
 				"command": [
 				    "start-daskworker.sh"
 				],
@@ -1409,7 +1409,7 @@
 				"env": [
 				    {
 					"name": "DASK_SCHEDULER_ADDRESS",
-					"value": "${APPLICATION_NAME}-scheduler:8786"
+					"value": "${JUPYTERHUB_NAME}-scheduler:8786"
 				    }
 				]
 			    }
@@ -1424,7 +1424,7 @@
 	    "metadata": {
 		"name": "${DASK_NAME}-scheduler",
 		"labels": {
-		    "app": "${APPLICATION_NAME}"
+		    "app": "${JUPYTERHUB_NAME}"
 		}
 	    },
 	    "spec": {
@@ -1444,20 +1444,20 @@
 			    ],
 			    "from": {
 				"kind": "ImageStreamTag",
-				"name": "${APPLICATION_NAME}-notebook-img:latest"
+				"name": "${JUPYTERHUB_NAME}-notebook-img:latest"
 			    }
 			}
 		    }
 		],
 		"replicas": 1,
 		"selector": {
-		    "app": "${APPLICATION_NAME}",
+		    "app": "${JUPYTERHUB_NAME}",
 		    "deploymentconfig": "${DASK_NAME}-scheduler"
 		},
 		"template": {
 		    "metadata": {
 			"labels": {
-			    "app": "${APPLICATION_NAME}",
+			    "app": "${JUPYTERHUB_NAME}",
 			    "deploymentconfig": "${DASK_NAME}-scheduler"
 			}
 		    },
@@ -1465,7 +1465,7 @@
 			"containers": [
 			    {
 				"name": "scheduler",
-				"image": "${APPLICATION_NAME}-notebook-img:latest",
+				"image": "${JUPYTERHUB_NAME}-notebook-img:latest",
 				"command": [
 				    "start-daskscheduler.sh"
 				],
@@ -1502,7 +1502,7 @@
 	    "metadata": {
 		"name": "${DASK_NAME}-scheduler",
 		"labels": {
-		    "app": "${APPLICATION_NAME}"
+		    "app": "${JUPYTERHUB_NAME}"
 		}
 	    },
 	    "spec": {
@@ -1521,7 +1521,7 @@
 		    }
 		],
 		"selector": {
-		    "app": "${APPLICATION_NAME}",
+		    "app": "${JUPYTERHUB_NAME}",
 		    "deploymentconfig": "${DASK_NAME}-scheduler"
 		}
 	    }
