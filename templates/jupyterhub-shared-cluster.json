@@ -27,7 +27,7 @@
         },
         {
             "name": "NOTEBOOK_REPOSITORY_URL",
-            "value": "https://github.com/jupyter-on-openshift/jupyterhub-quickstart.git",
+            "value": "https://github.com/jupyter-on-openshift/poc-hub-dask-cluster.git",
             "required": true
         },
         {
