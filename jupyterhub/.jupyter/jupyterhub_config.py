@@ -107,25 +107,29 @@ c.Spawner.environment.update(dict(
     JUPYTER_MASTER_FILES='/opt/app-root/master',
     JUPYTER_WORKSPACE_NAME='workspace'))
 
-# Setup culling of idle notebooks if timeout parameter is supplied.
+# Setup JupyterHub services.
+
+c.JupyterHub.services = []
+
+dask_service_name = os.environ.get('DASK_SERVICE_NAME')
+dask_api_token = os.environ.get('DASK_CONTROLLER_API_TOKEN')
+
+if dask_service_name and dask_api_token:
+    c.JupyterHub.services.extend([
+	{
+	    'name': 'dask-cluster',
+	    'url': 'http://%s-cm:8080' % dask_service_name,
+	    'api_token': dask_api_token,
+	}
+    ])
 
 idle_timeout = os.environ.get('JUPYTERHUB_IDLE_TIMEOUT')
 
 if idle_timeout and int(idle_timeout):
-    c.JupyterHub.services = [
+    c.JupyterHub.services.extend([
         {
             'name': 'cull-idle',
             'admin': True,
             'command': ['cull-idle-servers', '--timeout=%s' % idle_timeout],
-        },
-        {
-            'name': 'backup-users',
-            'admin': True,
-            'command': ['backup-user-details', '--backups=/opt/app-root/notebooks/backups', '--interval=30'],
-        },
-	{
-	    'name': 'dask-cluster',
-	    'url': 'http://%s-cm:8080' % os.environ['DASK_SERVICE_NAME'],
-	    'api_token': os.environ['CLUSTER_MANAGER_API_TOKEN'],
-	}
-    ]
+        }
+    ])

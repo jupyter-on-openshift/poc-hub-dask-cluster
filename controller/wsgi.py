@@ -4,6 +4,8 @@ import os
 from urllib.parse import quote
 
 from flask import Flask, redirect, request, Response
+from flask import render_template
+
 from jupyterhub.services.auth import HubAuth
 from wrapt import decorator
 
@@ -35,5 +37,6 @@ def authenticated(wrapped, instance, args, kwargs):
 @application.route(prefix)
 @authenticated
 def whoami(user):
-    return Response(json.dumps(user, indent=1, sort_keys=True),
-            mimetype='application/json')
+    return render_template('home.html')
+    #return Response(json.dumps(user, indent=1, sort_keys=True),
+    #        mimetype='application/json')
