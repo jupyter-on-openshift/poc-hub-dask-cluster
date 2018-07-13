@@ -355,6 +355,10 @@
                                     {
                                         "name": "JUPYTERHUB_DATABASE_HOST",
                                         "value": "${JUPYTERHUB_NAME}-database"
+                                    },
+                                    {
+                                        "name": "DASK_SCHEDULER_ADDRESS",
+                                        "value": "http://${DASK_NAME}-scheduler:8786"
                                     }
                                 ]
                             }

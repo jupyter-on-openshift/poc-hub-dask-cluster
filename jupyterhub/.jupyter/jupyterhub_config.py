@@ -7,6 +7,11 @@ c.Spawner.environment = {}
 if os.environ.get('JUPYTERHUB_ENABLE_LAB', 'false').lower() in ['true', 'yes', 'y', '1']:
     c.Spawner.environment.update(dict(JUPYTER_ENABLE_LAB='true'))
 
+dask_scheduler = os.environ.get('DASK_SCHEDULER_ADDRESS')
+
+if dask_scheduler:
+    c.Spawner.environment.update(dict(DASK_SCHEDULER_ADDRESS=dask_scheduler))
+
 # Setup location for customised template files.
 
 c.JupyterHub.template_paths = ['/opt/app-root/src/templates']
