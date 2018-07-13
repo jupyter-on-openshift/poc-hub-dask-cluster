@@ -112,7 +112,7 @@
             "required": true
         },
         {
-            "name": "CLUSTER_MANAGER_API_TOKEN",
+            "name": "DASK_CONTROLLER_API_TOKEN",
             "generate": "expression",
             "from": "[a-f0-9]{32}",
             "required": true
@@ -138,7 +138,7 @@
             "kind": "ServiceAccount",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-hub",
+                "name": "${JUPYTERHUB_NAME}-sa",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -156,7 +156,7 @@
             "subjects": [
                 {
                     "kind": "ServiceAccount",
-                    "name": "${JUPYTERHUB_NAME}-hub"
+                    "name": "${JUPYTERHUB_NAME}-sa"
                 }
             ],
             "roleRef": {
@@ -167,7 +167,7 @@
             "kind": "ImageStream",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-hub-s2i",
+                "name": "${JUPYTERHUB_NAME}-s2i",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -177,7 +177,7 @@
             "kind": "BuildConfig",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-hub-s2i",
+                "name": "${JUPYTERHUB_NAME}-s2i",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -210,7 +210,7 @@
                 "output": {
                     "to": {
                         "kind": "ImageStreamTag",
-                        "name": "${JUPYTERHUB_NAME}-hub-s2i:latest"
+                        "name": "${JUPYTERHUB_NAME}-s2i:latest"
                     }
                 }
             }
@@ -219,7 +219,7 @@
             "kind": "ImageStream",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-hub-img",
+                "name": "${JUPYTERHUB_NAME}-img",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -230,7 +230,7 @@
             "kind": "BuildConfig",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-hub-img",
+                "name": "${JUPYTERHUB_NAME}-img",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -256,14 +256,14 @@
                     "sourceStrategy": {
                         "from": {
                             "kind": "ImageStreamTag",
-                            "name": "${JUPYTERHUB_NAME}-hub-s2i:latest"
+                            "name": "${JUPYTERHUB_NAME}-s2i:latest"
                         }
                     }
                 },
                 "output": {
                     "to": {
                         "kind": "ImageStreamTag",
-                        "name": "${JUPYTERHUB_NAME}-hub-img:latest"
+                        "name": "${JUPYTERHUB_NAME}-img:latest"
                     }
                 }
             }
@@ -308,7 +308,7 @@
                             ],
                             "from": {
                                 "kind": "ImageStreamTag",
-                                "name": "${JUPYTERHUB_NAME}-hub-img:latest"
+                                "name": "${JUPYTERHUB_NAME}-img:latest"
                             }
                         }
                     }
@@ -326,7 +326,7 @@
                         }
                     },
                     "spec": {
-                        "serviceAccountName": "${JUPYTERHUB_NAME}-hub",
+                        "serviceAccountName": "${JUPYTERHUB_NAME}-sa",
                         "initContainers": [
                             {
                                 "name": "wait-for-database",
@@ -344,7 +344,7 @@
                                     },
                                     {
                                         "name": "JUPYTERHUB_DATABASE_HOST",
-                                        "value": "${JUPYTERHUB_NAME}-db"
+                                        "value": "${JUPYTERHUB_NAME}-database"
                                     }
                                 ]
                             }
@@ -382,7 +382,7 @@
                                     },
                                     {
                                         "name": "JUPYTERHUB_NOTEBOOK_IMAGE",
-                                        "value": "${JUPYTERHUB_NAME}-nb-img:latest"
+                                        "value": "${JUPYTERHUB_NAME}-notebook-img:latest"
                                     },
                                     {
                                         "name": "JUPYTERHUB_IDLE_TIMEOUT",
@@ -403,7 +403,7 @@
                                     },
                                     {
                                         "name": "JUPYTERHUB_DATABASE_HOST",
-                                        "value": "${JUPYTERHUB_NAME}-db"
+                                        "value": "${JUPYTERHUB_NAME}-database"
                                     },
                                     {
                                         "name": "JUPYTERHUB_COOKIE_SECRET",
@@ -418,8 +418,8 @@
                                         "value": "${DASK_NAME}"
                                     },
                                     {
-                                        "name": "CLUSTER_MANAGER_API_TOKEN",
-                                        "value": "${CLUSTER_MANAGER_API_TOKEN}"
+                                        "name": "DASK_CONTROLLER_API_TOKEN",
+                                        "value": "${DASK_CONTROLLER_API_TOKEN}"
                                     }
                                 ],
                                 "volumeMounts": [
@@ -503,7 +503,7 @@
             "kind": "PersistentVolumeClaim",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-db",
+                "name": "${JUPYTERHUB_NAME}-database",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -523,7 +523,7 @@
             "apiVersion": "v1",
             "kind": "DeploymentConfig",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-db",
+                "name": "${JUPYTERHUB_NAME}-database",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -532,7 +532,7 @@
                 "replicas": 1,
                 "selector": {
                     "app": "${JUPYTERHUB_NAME}",
-                    "deploymentconfig": "${JUPYTERHUB_NAME}-db"
+                    "deploymentconfig": "${JUPYTERHUB_NAME}-database"
                 },
                 "strategy": {
                     "type": "Recreate"
@@ -541,7 +541,7 @@
                     "metadata": {
                         "labels": {
                             "app": "${JUPYTERHUB_NAME}",
-                            "deploymentconfig": "${JUPYTERHUB_NAME}-db"
+                            "deploymentconfig": "${JUPYTERHUB_NAME}-database"
                         }
                     },
                     "spec": {
@@ -600,7 +600,7 @@
                             {
                                 "name": "data",
                                 "persistentVolumeClaim": {
-                                    "claimName": "${JUPYTERHUB_NAME}-db"
+                                    "claimName": "${JUPYTERHUB_NAME}-database"
                                 }
                             },
                             {
@@ -638,7 +638,7 @@
             "kind": "Service",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-db",
+                "name": "${JUPYTERHUB_NAME}-database",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -654,7 +654,7 @@
                 ],
                 "selector": {
                     "app": "${JUPYTERHUB_NAME}",
-                    "deploymentconfig": "${JUPYTERHUB_NAME}-db"
+                    "deploymentconfig": "${JUPYTERHUB_NAME}-database"
                 }
             }
         },
@@ -663,7 +663,7 @@
             "kind": "ImageStream",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-nb-s2i",
+                "name": "${JUPYTERHUB_NAME}-notebook-s2i",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -673,7 +673,7 @@
             "kind": "BuildConfig",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-nb-s2i",
+                "name": "${JUPYTERHUB_NAME}-notebook-s2i",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -713,7 +713,7 @@
                 "output": {
                     "to": {
                         "kind": "ImageStreamTag",
-                        "name": "${JUPYTERHUB_NAME}-nb-s2i:latest"
+                        "name": "${JUPYTERHUB_NAME}-notebook-s2i:latest"
                     }
                 },
                 "resources": {
@@ -727,7 +727,7 @@
             "kind": "ImageStream",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-nb-img",
+                "name": "${JUPYTERHUB_NAME}-notebook-img",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -737,7 +737,7 @@
             "kind": "BuildConfig",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${JUPYTERHUB_NAME}-nb-img",
+                "name": "${JUPYTERHUB_NAME}-notebook-img",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -763,7 +763,7 @@
                     "sourceStrategy": {
                         "from": {
                             "kind": "ImageStreamTag",
-                            "name": "${JUPYTERHUB_NAME}-nb-s2i:latest"
+                            "name": "${JUPYTERHUB_NAME}-notebook-s2i:latest"
                         },
                         "env": [
                             {
@@ -776,7 +776,7 @@
                 "output": {
                     "to": {
                         "kind": "ImageStreamTag",
-                        "name": "${JUPYTERHUB_NAME}-nb-img:latest"
+                        "name": "${JUPYTERHUB_NAME}-notebook-img:latest"
                     }
                 },
                 "resources": {
@@ -904,7 +904,7 @@
                         }
                     },
                     "spec": {
-                        "serviceAccountName": "${JUPYTERHUB_NAME}-hub",
+                        "serviceAccountName": "${JUPYTERHUB_NAME}-sa",
                         "containers": [
                             {
                                 "name": "keycloak",
@@ -946,7 +946,7 @@
                                     },
                                     {
                                         "name": "DB_ADDR",
-                                        "value": "${KEYCLOAK_NAME}-db"
+                                        "value": "${KEYCLOAK_NAME}-database"
                                     },
                                     {
                                         "name": "DB_PORT",
@@ -1034,7 +1034,7 @@
             "kind": "PersistentVolumeClaim",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${KEYCLOAK_NAME}-db",
+                "name": "${KEYCLOAK_NAME}-database",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1054,7 +1054,7 @@
             "apiVersion": "v1",
             "kind": "DeploymentConfig",
             "metadata": {
-                "name": "${KEYCLOAK_NAME}-db",
+                "name": "${KEYCLOAK_NAME}-database",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1063,7 +1063,7 @@
                 "replicas": 1,
                 "selector": {
                     "app": "${JUPYTERHUB_NAME}",
-                    "deploymentconfig": "${KEYCLOAK_NAME}-db"
+                    "deploymentconfig": "${KEYCLOAK_NAME}-database"
                 },
                 "strategy": {
                     "type": "Recreate"
@@ -1072,7 +1072,7 @@
                     "metadata": {
                         "labels": {
                             "app": "${JUPYTERHUB_NAME}",
-                            "deploymentconfig": "${KEYCLOAK_NAME}-db"
+                            "deploymentconfig": "${KEYCLOAK_NAME}-database"
                         }
                     },
                     "spec": {
@@ -1131,7 +1131,7 @@
                             {
                                 "name": "data",
                                 "persistentVolumeClaim": {
-                                    "claimName": "${KEYCLOAK_NAME}-db"
+                                    "claimName": "${KEYCLOAK_NAME}-database"
                                 }
                             },
                             {
@@ -1169,7 +1169,7 @@
             "kind": "Service",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${KEYCLOAK_NAME}-db",
+                "name": "${KEYCLOAK_NAME}-database",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1185,7 +1185,7 @@
                 ],
                 "selector": {
                     "app": "${JUPYTERHUB_NAME}",
-                    "deploymentconfig": "${KEYCLOAK_NAME}-db"
+                    "deploymentconfig": "${KEYCLOAK_NAME}-database"
                 }
             }
         },
@@ -1193,7 +1193,7 @@
             "kind": "ImageStream",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${DASK_NAME}-cm-img",
+                "name": "${DASK_NAME}-controller-img",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1203,7 +1203,7 @@
             "kind": "BuildConfig",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${DASK_NAME}-cm-img",
+                "name": "${DASK_NAME}-controller-img",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1237,7 +1237,7 @@
                 "output": {
                     "to": {
                         "kind": "ImageStreamTag",
-                        "name": "${DASK_NAME}-cm-img:latest"
+                        "name": "${DASK_NAME}-controller-img:latest"
                     }
                 }
             }
@@ -1246,7 +1246,7 @@
             "kind": "DeploymentConfig",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${DASK_NAME}-cm",
+                "name": "${DASK_NAME}-controller",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1268,7 +1268,7 @@
                             ],
                             "from": {
                                 "kind": "ImageStreamTag",
-                                "name": "${DASK_NAME}-cm-img:latest"
+                                "name": "${DASK_NAME}-controller-img:latest"
                             }
                         }
                     }
@@ -1276,20 +1276,20 @@
                 "replicas": 1,
                 "selector": {
                     "app": "${JUPYTERHUB_NAME}",
-                    "deploymentconfig": "${DASK_NAME}-cm"
+                    "deploymentconfig": "${DASK_NAME}-controller"
                 },
                 "template": {
                     "metadata": {
                         "labels": {
                             "app": "${JUPYTERHUB_NAME}",
-                            "deploymentconfig": "${DASK_NAME}-cm"
+                            "deploymentconfig": "${DASK_NAME}-controller"
                         }
                     },
                     "spec": {
                         "containers": [
                             {
                                 "name": "manager",
-                                "image": "${DASK_NAME}-cm",
+                                "image": "${DASK_NAME}-controller",
                                 "ports": [
                                     {
                                         "containerPort": 8080,
@@ -1303,7 +1303,7 @@
                                     },
                                     {
                                         "name": "JUPYTERHUB_API_TOKEN",
-                                        "value": "${CLUSTER_MANAGER_API_TOKEN}"
+                                        "value": "${DASK_CONTROLLER_API_TOKEN}"
                                     },
                                     {
                                         "name": "JUPYTERHUB_API_URL",
@@ -1320,7 +1320,7 @@
             "kind": "Service",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${DASK_NAME}-cm",
+                "name": "${DASK_NAME}-controller",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1336,7 +1336,7 @@
                 ],
                 "selector": {
                     "app": "${JUPYTERHUB_NAME}",
-                    "deploymentconfig": "${DASK_NAME}-cm"
+                    "deploymentconfig": "${DASK_NAME}-controller"
                 }
             }
         }
