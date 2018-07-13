@@ -37,6 +37,5 @@ def authenticated(wrapped, instance, args, kwargs):
 @application.route(prefix)
 @authenticated
 def whoami(user):
-    return render_template('home.html')
-    #return Response(json.dumps(user, indent=1, sort_keys=True),
-    #        mimetype='application/json')
+    return Response(json.dumps(user, indent=1, sort_keys=True),
+            mimetype='application/json')
