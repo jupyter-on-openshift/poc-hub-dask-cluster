@@ -355,10 +355,6 @@
                                     {
                                         "name": "JUPYTERHUB_DATABASE_HOST",
                                         "value": "${JUPYTERHUB_NAME}-database"
-                                    },
-                                    {
-                                        "name": "DASK_SCHEDULER_ADDRESS",
-                                        "value": "http://${DASK_NAME}-scheduler:8786"
                                     }
                                 ]
                             }
@@ -434,6 +430,10 @@
                                     {
                                         "name": "DASK_CONTROLLER_API_TOKEN",
                                         "value": "${DASK_CONTROLLER_API_TOKEN}"
+                                    },
+                                    {
+                                        "name": "DASK_SCHEDULER_ADDRESS",
+                                        "value": "http://${DASK_NAME}-scheduler:8786"
                                     }
                                 ],
                                 "volumeMounts": [
