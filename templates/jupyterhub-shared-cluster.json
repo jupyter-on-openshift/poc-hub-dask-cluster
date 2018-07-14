@@ -40,7 +40,7 @@
         },
         {
             "name": "JUPYTERLAB_ENABLED",
-            "value": "true"
+            "value": "false"
         },
         {
             "name": "JUPYTERHUB_ADMIN_USERS",
