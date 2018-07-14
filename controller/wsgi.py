@@ -54,18 +54,13 @@ def authenticated(wrapped, instance, args, kwargs):
         # Request to login url on failed authentication.
         return redirect(auth.login_url + '?next=%s' % quote(request.path))
 
-@controller.route('/')
-@authenticated
-def whoami(user):
-    return Response(json.dumps(user, indent=1, sort_keys=True),
-            mimetype='application/json')
-
 dask_cluster_name = os.environ.get('DASK_CLUSTER_NAME')
 dask_scheduler_name = '%s-scheduler' % dask_cluster_name
 dask_worker_name = '%s-worker' % dask_cluster_name
 
 @controller.route('/pods', methods=['GET', 'OPTIONS', 'POST'])
-def pods():
+@authenticated
+def pods(user):
     pods = corev1api.list_namespaced_pod(namespace)
 
     names = []
@@ -80,7 +75,8 @@ def pods():
     return jsonify(pods=sorted(names), phases=phases)
 
 @controller.route('/view')
-def view():
+@authenticated
+def view(user):
     source = AjaxDataSource(data=dict(pods=[],phases=[]),
             data_url=url_for('controller.pods'), polling_interval=1000)
 
