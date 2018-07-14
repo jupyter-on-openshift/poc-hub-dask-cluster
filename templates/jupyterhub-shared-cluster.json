@@ -21,7 +21,7 @@
             "required": true
         },
         {
-            "name": "DASK_NAME",
+            "name": "DASK_CLUSTER_NAME",
             "value": "dask",
             "required": true
         },
@@ -424,8 +424,8 @@
                                         "value": "${NOTEBOOK_VOLUME_SIZE}"
                                     },
                                     {
-                                        "name": "DASK_SERVICE_NAME",
-                                        "value": "${DASK_NAME}"
+                                        "name": "DASK_CLUSTER_NAME",
+                                        "value": "${DASK_CLUSTER_NAME}"
                                     },
                                     {
                                         "name": "DASK_CONTROLLER_API_TOKEN",
@@ -433,7 +433,7 @@
                                     },
                                     {
                                         "name": "DASK_SCHEDULER_ADDRESS",
-                                        "value": "${DASK_NAME}-scheduler:8786"
+                                        "value": "${DASK_CLUSTER_NAME}-scheduler:8786"
                                     }
                                 ],
                                 "volumeMounts": [
@@ -1207,7 +1207,7 @@
             "kind": "ImageStream",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${DASK_NAME}-controller-img",
+                "name": "${DASK_CLUSTER_NAME}-controller-img",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1217,7 +1217,7 @@
             "kind": "BuildConfig",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${DASK_NAME}-controller-img",
+                "name": "${DASK_CLUSTER_NAME}-controller-img",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1251,7 +1251,7 @@
                 "output": {
                     "to": {
                         "kind": "ImageStreamTag",
-                        "name": "${DASK_NAME}-controller-img:latest"
+                        "name": "${DASK_CLUSTER_NAME}-controller-img:latest"
                     }
                 }
             }
@@ -1260,7 +1260,7 @@
             "kind": "DeploymentConfig",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${DASK_NAME}-controller",
+                "name": "${DASK_CLUSTER_NAME}-controller",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1282,7 +1282,7 @@
                             ],
                             "from": {
                                 "kind": "ImageStreamTag",
-                                "name": "${DASK_NAME}-controller-img:latest"
+                                "name": "${DASK_CLUSTER_NAME}-controller-img:latest"
                             }
                         }
                     }
@@ -1290,20 +1290,21 @@
                 "replicas": 1,
                 "selector": {
                     "app": "${JUPYTERHUB_NAME}",
-                    "deploymentconfig": "${DASK_NAME}-controller"
+                    "deploymentconfig": "${DASK_CLUSTER_NAME}-controller"
                 },
                 "template": {
                     "metadata": {
                         "labels": {
                             "app": "${JUPYTERHUB_NAME}",
-                            "deploymentconfig": "${DASK_NAME}-controller"
+                            "deploymentconfig": "${DASK_CLUSTER_NAME}-controller"
                         }
                     },
                     "spec": {
+                        "serviceAccountName": "${JUPYTERHUB_NAME}-sa",
                         "containers": [
                             {
                                 "name": "manager",
-                                "image": "${DASK_NAME}-controller",
+                                "image": "${DASK_CLUSTER_NAME}-controller",
                                 "ports": [
                                     {
                                         "containerPort": 8080,
@@ -1311,6 +1312,10 @@
                                     }
                                 ],
                                 "env": [
+                                    {
+                                        "name": "DASK_CLUSTER_NAME",
+                                        "value": "${DASK_CLUSTER_NAME}"
+                                    },
                                     {
                                         "name": "JUPYTERHUB_SERVICE_PREFIX",
                                         "value": "/services/dask-controller/"
@@ -1334,7 +1339,7 @@
             "kind": "Service",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${DASK_NAME}-controller",
+                "name": "${DASK_CLUSTER_NAME}-controller",
                 "labels": {
                     "app": "${JUPYTERHUB_NAME}"
                 }
@@ -1350,7 +1355,7 @@
                 ],
                 "selector": {
                     "app": "${JUPYTERHUB_NAME}",
-                    "deploymentconfig": "${DASK_NAME}-controller"
+                    "deploymentconfig": "${DASK_CLUSTER_NAME}-controller"
                 }
             }
         },
@@ -1358,7 +1363,7 @@
 	    "kind": "DeploymentConfig",
 	    "apiVersion": "v1",
 	    "metadata": {
-		"name": "${DASK_NAME}-worker",
+		"name": "${DASK_CLUSTER_NAME}-worker",
 		"labels": {
 		    "app": "${JUPYTERHUB_NAME}"
 		}
@@ -1388,13 +1393,13 @@
 		"replicas": "${{DASK_WORKER_REPLICAS}}",
 		"selector": {
 		    "app": "${JUPYTERHUB_NAME}",
-		    "deploymentconfig": "${DASK_NAME}-worker"
+		    "deploymentconfig": "${DASK_CLUSTER_NAME}-worker"
 		},
 		"template": {
 		    "metadata": {
 			"labels": {
 			    "app": "${JUPYTERHUB_NAME}",
-			    "deploymentconfig": "${DASK_NAME}-worker"
+			    "deploymentconfig": "${DASK_CLUSTER_NAME}-worker"
 			}
 		    },
 		    "spec": {
@@ -1413,7 +1418,7 @@
 				"env": [
 				    {
 					"name": "DASK_SCHEDULER_ADDRESS",
-					"value": "${DASK_NAME}-scheduler:8786"
+					"value": "${DASK_CLUSTER_NAME}-scheduler:8786"
 				    }
 				]
 			    }
@@ -1426,7 +1431,7 @@
 	    "kind": "DeploymentConfig",
 	    "apiVersion": "v1",
 	    "metadata": {
-		"name": "${DASK_NAME}-scheduler",
+		"name": "${DASK_CLUSTER_NAME}-scheduler",
 		"labels": {
 		    "app": "${JUPYTERHUB_NAME}"
 		}
@@ -1456,13 +1461,13 @@
 		"replicas": 1,
 		"selector": {
 		    "app": "${JUPYTERHUB_NAME}",
-		    "deploymentconfig": "${DASK_NAME}-scheduler"
+		    "deploymentconfig": "${DASK_CLUSTER_NAME}-scheduler"
 		},
 		"template": {
 		    "metadata": {
 			"labels": {
 			    "app": "${JUPYTERHUB_NAME}",
-			    "deploymentconfig": "${DASK_NAME}-scheduler"
+			    "deploymentconfig": "${DASK_CLUSTER_NAME}-scheduler"
 			}
 		    },
 		    "spec": {
@@ -1504,7 +1509,7 @@
 	    "kind": "Service",
 	    "apiVersion": "v1",
 	    "metadata": {
-		"name": "${DASK_NAME}-scheduler",
+		"name": "${DASK_CLUSTER_NAME}-scheduler",
 		"labels": {
 		    "app": "${JUPYTERHUB_NAME}"
 		}
@@ -1526,7 +1531,7 @@
 		],
 		"selector": {
 		    "app": "${JUPYTERHUB_NAME}",
-		    "deploymentconfig": "${DASK_NAME}-scheduler"
+		    "deploymentconfig": "${DASK_CLUSTER_NAME}-scheduler"
 		}
 	    }
 	}

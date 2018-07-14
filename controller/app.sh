@@ -6,6 +6,8 @@ PORT=${PORT:-8080}
 
 ARGS=""
 
+ARGS="$ARGS --access-log"
+ARGS="$ARGS --log-level info"
 ARGS="$ARGS --log-to-terminal"
 ARGS="$ARGS --port $PORT"
 ARGS="$ARGS --document-root htdocs"

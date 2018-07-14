@@ -116,23 +116,23 @@ c.Spawner.environment.update(dict(
 
 c.JupyterHub.services = []
 
-dask_service_name = os.environ.get('DASK_SERVICE_NAME')
+dask_cluster_name = os.environ.get('DASK_CLUSTER_NAME')
 
-if dask_service_name:
+if dask_cluster_name:
     c.JupyterHub.services.extend([
 	{
 	    'name': 'dask-monitor',
-	    'url': 'http://%s-scheduler:8787' % dask_service_name
+	    'url': 'http://%s-scheduler:8787' % dask_cluster_name
 	}
     ])
 
 dask_api_token = os.environ.get('DASK_CONTROLLER_API_TOKEN')
 
-if dask_service_name and dask_api_token:
+if dask_cluster_name and dask_api_token:
     c.JupyterHub.services.extend([
 	{
 	    'name': 'dask-controller',
-	    'url': 'http://%s-controller:8080' % dask_service_name,
+	    'url': 'http://%s-controller:8080' % dask_cluster_name,
 	    'api_token': dask_api_token,
 	}
     ])

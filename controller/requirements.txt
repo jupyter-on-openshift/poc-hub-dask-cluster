@@ -2,3 +2,5 @@ Flask==1.0.2
 jupyterhub==0.9.1
 wrapt==1.10.11
 mod_wsgi==4.6.4
+bokeh==0.13.0
+openshift==0.6.1
