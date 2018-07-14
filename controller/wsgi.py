@@ -13,10 +13,10 @@ from bokeh.models import ColumnDataSource
 from bokeh.models.widgets import DataTable, TableColumn
 from bokeh.models.sources import AjaxDataSource
 
-from openshift import oconfig
-from openshift import oclient
+from openshift import config as oconfig
+from openshift import client as oclient
 
-from kubernetes import kclient
+from kubernetes import client as kclient
 
 from wrapt import decorator
 
