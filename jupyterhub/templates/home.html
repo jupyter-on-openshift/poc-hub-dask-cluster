@@ -18,5 +18,25 @@
       <a id="account"role="button" class="btn btn-lg btn-primary" href="{{ keycloak_account_url }}" target="_blank">My Account</a>
     </div>
   </div>
+  <div class="row">
+    <div class="text-center">
+      <a id="start"role="button" class="btn btn-lg btn-primary" href="/services/dask-monitor" target="_blank">Dask Monitor</a>
+    </div>
+  </div>
+
+<div class="row">
+    <div class="text-center">
+
+<iframe id="cluster-view" src="/services/dask-controller/view" style="margin:0; width:100%; height:150px; border:none; overflow:hidden;" scrolling="no" onload="AdjustIframeHeightOnLoad()"></iframe>
+
+<script type="text/javascript">
+function AdjustIframeHeightOnLoad() {
+    document.getElementById("cluster-view").style.height = document.getElementById("cluster-view").contentWindow.document.body.scrollHeight + "px"; }
+function AdjustIframeHeight(i) { document.getElementById("cluster-view").style.height = parseInt(i) + "px"; }
+</script>
+
+    </div>
+</div>
+
 </div>
 {% endblock %}
