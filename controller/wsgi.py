@@ -1,5 +1,5 @@
-import json
 import os
+import json
 
 from urllib.parse import quote
 
@@ -69,20 +69,23 @@ def pods():
     pods = corev1api.list_namespaced_pod(namespace)
 
     names = []
+    phases = []
 
     for pod in pods.items:
         name = pod.metadata.labels.get('deploymentconfig')
         if name in [dask_scheduler_name, dask_worker_name]:
             names.append(pod.metadata.name)
+            phases.append(pod.status.phase)
 
-    return jsonify(pods=sorted(names),)
+    return jsonify(pods=sorted(names), phases=phases)
 
 @controller.route('/view')
 def view():
-    source = AjaxDataSource(data=dict(pods=[],),
+    source = AjaxDataSource(data=dict(pods=[],phases=[]),
             data_url=url_for('controller.pods'), polling_interval=1000)
 
-    columns = [TableColumn(field="pods", title="Pod"),]
+    columns = [TableColumn(field="pods", title="Name"),
+               TableColumn(field="phases", title="Phase")]
 
     data_table = DataTable(source=source, columns=columns, width=400, height=280)
 
