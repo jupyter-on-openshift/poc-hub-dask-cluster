@@ -65,7 +65,7 @@ dask_scheduler_name = '%s-scheduler' % dask_cluster_name
 dask_worker_name = '%s-worker' % dask_cluster_name
 
 @controller.route('/pods', methods=['GET', 'OPTIONS', 'POST'])
-def tabledata():
+def pods():
     pods = corev1api.list_namespaced_pod(namespace)
 
     names = []
@@ -78,7 +78,7 @@ def tabledata():
     return jsonify(pods=sorted(names),)
 
 @controller.route('/view')
-def index():
+def view():
     source = AjaxDataSource(data=dict(pods=[],),
             data_url=url_for('controller.pods'), polling_interval=1000)
 
