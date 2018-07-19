@@ -27,13 +27,30 @@
 <div class="row">
     <div class="text-center">
 
-<iframe id="cluster-view" src="/services/dask-controller/view" style="margin:0; width:100%; height:150px; border:none; overflow:hidden;" scrolling="no" onload="AdjustIframeHeightOnLoad()"></iframe>
-
-<script type="text/javascript">
-function AdjustIframeHeightOnLoad() {
-    document.getElementById("cluster-view").style.height = document.getElementById("cluster-view").contentWindow.document.body.scrollHeight + "px"; }
-function AdjustIframeHeight(i) { document.getElementById("cluster-view").style.height = parseInt(i) + "px"; }
-</script>
+<script>
+ setInterval(function() {
+ $.ajax({
+  type: "GET",
+  url: "/services/dask-controller/pods",
+ })
+  .done(function( data ) {
+    console.log(data);
+    var tableHtml = '';
+    for (i = 0, ilen = data.length; i < ilen; ++i) {
+      tableHtml += '<tr>';
+      for (j = 0, jlen = data[i].length; j < jlen; ++j) {
+        tableHtml += '<td>' + data[i][j] + '</td>';
+      }
+      tableHtml += '</tr>';
+    }
+    $("#table-box").html(tableHtml)
+   }).fail(function(jqXHR, textStatus, errorThrown) {
+     console.log(jqXHR, textStatus, errorThrown);
+   });
+  }, 1000 * 2);
+  </script>
+<table border="2" cellpadding="4" cellspacing="5" id="table-box" >
+</table>
 
     </div>
 </div>

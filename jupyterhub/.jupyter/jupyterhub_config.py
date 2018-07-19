@@ -132,8 +132,10 @@ if dask_cluster_name and dask_api_token:
     c.JupyterHub.services.extend([
 	{
 	    'name': 'dask-controller',
-	    'url': 'http://%s-controller:8080' % dask_cluster_name,
-	    'api_token': dask_api_token,
+	    'url': 'http://localhost:11111',
+            'command': ['/opt/app-root/src/start-dask-controller.sh'],
+            'environment': dict(JUPYTERHUB_SERVICE_NAME=jupyterhub_name,
+                DASK_CLUSTER_NAME=dask_cluster_name),
 	}
     ])
 

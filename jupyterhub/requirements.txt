@@ -1,2 +1,5 @@
 -e git+https://github.com/jupyter-on-openshift/kubespawner@pvc-quota-conflict#egg=jupyterhub-kubespawner
 openshift==0.6.1
+mod_wsgi==4.6.4
+Flask==1.0.2
+wrapt==1.10.11
