@@ -4,8 +4,8 @@ import json
 
 from urllib.parse import quote
 
-from flask import Flask, redirect, request, Response
-from flask import Blueprint, render_template, url_for, jsonify
+from flask import Flask, redirect, request, Response, abort
+from flask import Blueprint, jsonify
 
 from jupyterhub.services.auth import HubAuth
 
@@ -39,7 +39,7 @@ application = Flask(__name__)
 controller = Blueprint('controller', __name__, template_folder='templates')
 
 @decorator
-def authenticated(wrapped, instance, args, kwargs):
+def authenticated_user(wrapped, instance, args, kwargs):
     cookie = request.cookies.get(auth.cookie_name)
     token = request.headers.get(auth.auth_header_name)
 
@@ -55,6 +55,13 @@ def authenticated(wrapped, instance, args, kwargs):
     else:
         # Request to login url on failed authentication.
         return redirect(auth.login_url + '?next=%s' % quote(request.path))
+
+@decorator
+def admin_users_only(wrapped, instance, args, kwargs):
+    user = (lambda user: user)(*args, **kwargs)
+    if not user.get('admin', False):
+        abort(403)
+    return wrapped(*args, **kwargs)
 
 dask_cluster_name = os.environ.get('DASK_CLUSTER_NAME')
 dask_scheduler_name = '%s-scheduler' % dask_cluster_name
@@ -73,12 +80,13 @@ def get_pods():
     return details
 
 @controller.route('/pods', methods=['GET', 'OPTIONS', 'POST'])
-@authenticated
+@authenticated_user
 def pods(user):
     return jsonify(get_pods())
 
 @controller.route('/scale', methods=['GET', 'OPTIONS', 'POST'])
-@authenticated
+@authenticated_user
+@admin_users_only
 def scale(user):
     replicas = request.args.get('replicas', None)
 
@@ -105,7 +113,8 @@ def scale(user):
     return jsonify()
 
 @controller.route('/restart', methods=['GET', 'OPTIONS', 'POST'])
-@authenticated
+@authenticated_user
+@admin_users_only
 def restart(user):
     patch = {
         'spec': {
@@ -125,10 +134,5 @@ def restart(user):
             name, namespace, patch)
 
     return jsonify()
-
-@controller.route('/view')
-@authenticated
-def view(user):
-    return render_template("view.html", data=get_pods())
 
 application.register_blueprint(controller, url_prefix=prefix.rstrip('/'))
