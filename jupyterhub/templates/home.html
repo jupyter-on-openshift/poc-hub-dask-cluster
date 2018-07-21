@@ -7,35 +7,52 @@
   <div class="row">
     <div class="text-center">
       {% if user.running %}
-      <a id="stop" role="button" class="btn btn-lg btn-danger">Stop My Server</a>
+      <a id="stop" role="button" class="btn btn-lg btn-danger">Stop My Notebooks</a>
       {% endif %}
-      <a id="start"role="button" class="btn btn-lg btn-primary" href="{{ url }}">
+      <a id="start" role="button" class="btn btn-lg btn-primary" href="{{ url }}">
       {% if not user.running %}
       Start
       {% endif %}
-        My Server
+        My Notebooks
       </a>
-      <a id="account"role="button" class="btn btn-lg btn-primary" href="{{ keycloak_account_url }}" target="_blank">My Account</a>
     </div>
   </div>
+
+  </br>
+
   <div class="row">
     <div class="text-center">
-      <a id="start"role="button" class="btn btn-lg btn-primary" href="/services/dask-monitor" target="_blank">Dask Monitor</a>
+      <a id="account"role="button" class="btn btn-lg btn-primary" href="{{ keycloak_account_url }}" target="_blank">My KeyCloak Account</a>
     </div>
   </div>
 
-<div class="row">
+  </br>
+
+  <div class="row">
     <div class="text-center">
+      <a id="monitor" role="button" class="btn btn-lg btn-primary" href="/services/dask-monitor" target="_blank">Dask Monitoring</a>
+      <a id="scale-down" role="button" class="scale-down btn btn-lg btn-primary" target="_blank">Scale Down Workers</a>
+      <a id="scale-up" role="button" class="scale-up btn btn-lg btn-primary" target="_blank">Scale Up Workers</a>
+      <a id="restart" role="button" class="restart btn btn-lg btn-primary" target="_blank">Restart Workers</a>
+    </div>
+    </div>
+  </div>
+  </br>
+
+<div class="row">
+<div class="text-center">
 
 <script>
- setInterval(function() {
- $.ajax({
-  type: "GET",
-  url: "/services/dask-controller/pods",
- })
+var replicas = 0;
+
+function update_pod_list() {
+  $.ajax({
+    type: "GET",
+    url: "/services/dask-controller/pods",
+  })
   .done(function( data ) {
-    console.log(data);
     var tableHtml = '';
+    replicas = data.length;
     for (i = 0, ilen = data.length; i < ilen; ++i) {
       tableHtml += '<tr>';
       for (j = 0, jlen = data[i].length; j < jlen; ++j) {
@@ -44,15 +61,56 @@
       tableHtml += '</tr>';
     }
     $("#table-box").html(tableHtml)
-   }).fail(function(jqXHR, textStatus, errorThrown) {
-     console.log(jqXHR, textStatus, errorThrown);
-   });
-  }, 1000 * 2);
-  </script>
-<table border="2" cellpadding="4" cellspacing="5" id="table-box" >
+  }).fail(function(jqXHR, textStatus, errorThrown) {
+    console.log(jqXHR, textStatus, errorThrown);
+  });
+}
+
+function scale_pod(replicas) {
+  $.ajax({
+    type: "GET",
+    url: "/services/dask-controller/scale",
+    data: {
+      replicas: replicas,
+    }
+  });
+}
+
+function restart_pods() {
+  $.ajax({
+    type: "GET",
+    url: "/services/dask-controller/restart",
+  });
+}
+
+$(document).ready(function(){
+  $('.scale-down').click(function(e){
+      e.preventDefault();
+      scale_pod(replicas-1);
+  });
+
+  $('.scale-up').click(function(e){
+    e.preventDefault();
+    if (replicas > 0) {
+      scale_pod(replicas+1);
+    }
+  });
+
+  $('.restart').click(function(e){
+    e.preventDefault();
+    restart_pods();
+  });
+
+  update_pod_list();
+
+  setInterval(update_pod_list, 1000*1);
+});
+</script>
+
+<table align="center" border="2" cellpadding="4" cellspacing="5" id="table-box" >
 </table>
 
-    </div>
+</div>
 </div>
 
 </div>

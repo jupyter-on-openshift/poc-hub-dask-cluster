@@ -67,7 +67,7 @@ def get_pods():
 
     for pod in pods.items:
         name = pod.metadata.labels.get('deploymentconfig')
-        if name in [dask_scheduler_name, dask_worker_name]:
+        if name == dask_worker_name:
             details.append((pod.metadata.name, pod.status.phase))
 
     return details
@@ -80,11 +80,12 @@ def pods(user):
 @controller.route('/scale', methods=['GET', 'OPTIONS', 'POST'])
 @authenticated
 def scale(user):
-    replicas = request.args.get('replicas', '')
-    replicas = replicas and int(replicas) or None
+    replicas = request.args.get('replicas', None)
 
     if replicas is None:
         return jsonify()
+
+    replicas = int(replicas)
 
     scale = V1Scale()
     scale.kind = 'Scale'
@@ -98,7 +99,7 @@ def scale(user):
 
     scale.spec = V1ScaleSpec(replicas=replicas)
 
-    appsopenshiftiov1api.replace_namespaced_deployment_config_scale(
+    result = appsopenshiftiov1api.replace_namespaced_deployment_config_scale(
             name, namespace, scale)
 
     return jsonify()
