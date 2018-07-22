@@ -84,6 +84,8 @@ def get_pods():
 def pods(user):
     return jsonify(get_pods())
 
+max_worker_replicas = int(os.environ.get('DASK_MAX_WORKER_REPLICAS', '0'))
+
 @controller.route('/scale', methods=['GET', 'OPTIONS', 'POST'])
 @authenticated_user
 @admin_users_only
@@ -94,6 +96,9 @@ def scale(user):
         return jsonify()
 
     replicas = int(replicas)
+
+    if max_worker_replicas > 0:
+        replicas = min(replicas, max_worker_replicas)
 
     scale = V1Scale()
     scale.kind = 'Scale'

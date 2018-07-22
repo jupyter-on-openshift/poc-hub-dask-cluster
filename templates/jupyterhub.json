@@ -82,6 +82,11 @@
 	    "required": true
 	},
 	{
+	    "name": "DASK_MAX_WORKER_REPLICAS",
+	    "value": "5",
+	    "required": true
+	},
+	{
 	    "name": "DASK_WORKER_MEMORY",
 	    "value": "1Gi",
 	    "required": true
@@ -434,6 +439,10 @@
                                     {
                                         "name": "DASK_SCHEDULER_ADDRESS",
                                         "value": "${DASK_CLUSTER_NAME}-scheduler:8786"
+                                    },
+                                    {
+                                        "name": "DASK_MAX_WORKER_REPLICAS",
+                                        "value": "${DASK_MAX_WORKER_REPLICAS}"
                                     }
                                 ],
                                 "volumeMounts": [

@@ -9,11 +9,14 @@ PORT=${PORT:-11111}
 ARGS=""
 
 ARGS="$ARGS --server-root /tmp/dask-controller"
-ARGS="$ARGS --access-log"
 ARGS="$ARGS --log-level info"
 ARGS="$ARGS --log-to-terminal"
 ARGS="$ARGS --port $PORT"
 ARGS="$ARGS --document-root htdocs"
+
+if [ x"$MOD_WSGI_ACCESS_LOG" != x"" ]; then
+    ARGS="$ARGS --access-log"
+fi
 
 if [ x"$MOD_WSGI_THREADS" != x"" ]; then
     ARGS="$ARGS --threads $MOD_WSGI_THREADS"

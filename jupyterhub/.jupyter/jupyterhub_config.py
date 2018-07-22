@@ -126,6 +126,7 @@ if dask_cluster_name:
     ])
 
 dask_api_token = os.environ.get('DASK_CONTROLLER_API_TOKEN')
+max_worker_replicas = os.environ.get('DASK_MAX_WORKER_REPLICAS', '0')
 
 if dask_cluster_name and dask_api_token:
     c.JupyterHub.services.extend([
@@ -134,7 +135,8 @@ if dask_cluster_name and dask_api_token:
 	    'url': 'http://localhost:11111',
             'command': ['/opt/app-root/src/start-dask-controller.sh'],
             'environment': dict(JUPYTERHUB_SERVICE_NAME=jupyterhub_name,
-                DASK_CLUSTER_NAME=dask_cluster_name),
+                DASK_CLUSTER_NAME=dask_cluster_name,
+                DASK_MAX_WORKER_REPLICAS=max_worker_replicas),
 	}
     ])
 
