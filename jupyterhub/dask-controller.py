@@ -78,16 +78,17 @@ def admin_users_only(wrapped, instance, args, kwargs):
 
 dask_cluster_name = os.environ.get('DASK_CLUSTER_NAME')
 dask_scheduler_name = '%s-scheduler' % dask_cluster_name
-dask_worker_name = '%s-worker' % dask_cluster_name
 
-def get_pods():
+def get_pods(name):
     pods = corev1api.list_namespaced_pod(namespace)
 
     details = []
 
+    dask_worker_name = '%s-worker-%s' % (dask_cluster_name, name)
+
     for pod in pods.items:
-        name = pod.metadata.labels.get('deploymentconfig')
-        if name == dask_worker_name:
+        deployment = pod.metadata.labels.get('deploymentconfig')
+        if deployment == dask_worker_name:
             details.append((pod.metadata.name, pod.status.phase))
 
     return details
@@ -95,13 +96,12 @@ def get_pods():
 @controller.route('/pods', methods=['GET', 'OPTIONS', 'POST'])
 @authenticated_user
 def pods(user):
-    return jsonify(get_pods())
+    return jsonify(get_pods(user['name']))
 
 max_worker_replicas = int(os.environ.get('DASK_MAX_WORKER_REPLICAS', '0'))
 
 @controller.route('/scale', methods=['GET', 'OPTIONS', 'POST'])
 @authenticated_user
-@admin_users_only
 def scale(user):
     replicas = request.args.get('replicas', None)
 
@@ -117,22 +117,21 @@ def scale(user):
     scale.kind = 'Scale'
     scale.api_version = 'extensions/v1beta1'
 
-    name = '%s-worker' % dask_cluster_name
+    dask_worker_name = '%s-worker-%s' % (dask_cluster_name, user['name'])
 
     scale.metadata = V1ObjectMeta(
-            namespace=namespace, name=name,
+            namespace=namespace, name=dask_worker_name,
             labels={'app': dask_cluster_name})
 
     scale.spec = V1ScaleSpec(replicas=replicas)
 
     result = appsopenshiftiov1api.replace_namespaced_deployment_config_scale(
-            name, namespace, scale)
+            dask_worker_name, namespace, scale)
 
     return jsonify()
 
 @controller.route('/restart', methods=['GET', 'OPTIONS', 'POST'])
 @authenticated_user
-@admin_users_only
 def restart(user):
     patch = {
         'spec': {
@@ -146,10 +145,10 @@ def restart(user):
         }
     }
 
-    name = '%s-worker' % dask_cluster_name
+    dask_worker_name = '%s-worker-%s' % (dask_cluster_name, user['name'])
 
     appsopenshiftiov1api.patch_namespaced_deployment_config(
-            name, namespace, patch)
+            dask_worker_name, namespace, patch)
 
     return jsonify()
 
@@ -295,10 +294,10 @@ def create_cluster(name):
                                 limits={'memory':'256Mi'}
                             ),
                             env=[
-                                V1EnvVar(
-                                    name='DASK_SCHEDULER_ARGS',
-                                    value='--bokeh-prefix /services/dask-monitor'
-                                )
+#                                V1EnvVar(
+#                                    name='DASK_SCHEDULER_ARGS',
+#                                    value='--bokeh-prefix /services/dask-monitor'
+#                                )
                             ]
                         )
                     ]

@@ -112,13 +112,13 @@ c.JupyterHub.services = []
 
 dask_cluster_name = os.environ.get('DASK_CLUSTER_NAME')
 
-if dask_cluster_name:
-    c.JupyterHub.services.extend([
-	{
-	    'name': 'dask-monitor',
-	    'url': 'http://%s-scheduler:8787' % dask_cluster_name
-	}
-    ])
+#if dask_cluster_name:
+#    c.JupyterHub.services.extend([
+#       {
+#           'name': 'dask-monitor',
+#           'url': 'http://%s-scheduler:8787' % dask_cluster_name
+#       }
+#    ])
 
 dask_api_token = os.environ.get('DASK_CONTROLLER_API_TOKEN')
 worker_replicas = os.environ.get('DASK_WORKER_REPLICAS', '2')
@@ -142,16 +142,16 @@ if dask_cluster_name and dask_api_token:
             {'jupyteronopenshift.org/dask-cluster': '{username}'})
 
     c.JupyterHub.services.extend([
-	{
-	    'name': 'dask-controller',
-	    'url': 'http://localhost:11111',
+        {
+            'name': 'dask-controller',
+            'url': 'http://localhost:11111',
             'command': ['/opt/app-root/src/start-dask-controller.sh'],
             'environment': dict(JUPYTERHUB_NAME=jupyterhub_name,
                 DASK_CLUSTER_NAME=dask_cluster_name,
                 DASK_WORKER_MEMORY=worker_memory,
                 DASK_WORKER_REPLICAS=worker_replicas,
                 DASK_MAX_WORKER_REPLICAS=max_worker_replicas),
-	}
+        }
     ])
 
 idle_timeout = os.environ.get('JUPYTERHUB_IDLE_TIMEOUT')
