@@ -7,11 +7,6 @@ c.Spawner.environment = {}
 if os.environ.get('JUPYTERHUB_ENABLE_LAB', 'false').lower() in ['true', 'yes', 'y', '1']:
     c.Spawner.environment.update(dict(JUPYTER_ENABLE_LAB='true'))
 
-dask_scheduler = os.environ.get('DASK_SCHEDULER_ADDRESS')
-
-if dask_scheduler:
-    c.Spawner.environment.update(dict(DASK_SCHEDULER_ADDRESS=dask_scheduler))
-
 # Setup location for customised template files.
 
 c.JupyterHub.template_paths = ['/opt/app-root/src/templates']
@@ -126,16 +121,35 @@ if dask_cluster_name:
     ])
 
 dask_api_token = os.environ.get('DASK_CONTROLLER_API_TOKEN')
-max_worker_replicas = os.environ.get('DASK_MAX_WORKER_REPLICAS', '0')
+worker_replicas = os.environ.get('DASK_WORKER_REPLICAS', '2')
+max_worker_replicas = os.environ.get('DASK_MAX_WORKER_REPLICAS', '3')
+worker_memory = os.environ.get('DASK_WORKER_MEMORY', '512Mi')
+
+def modify_pod_hook(spawner, pod):
+    if dask_cluster_name and dask_api_token:
+        scheduler_address = '%s-scheduler-%s:8786' % (
+                dask_cluster_name, spawner.user.name)
+
+        pod.spec.containers[0].env.append(dict(name='DASK_SCHEDULER_ADDRESS',
+            value=scheduler_address))
+
+    return pod
+
+c.KubeSpawner.modify_pod_hook = modify_pod_hook
 
 if dask_cluster_name and dask_api_token:
+    c.KubeSpawner.singleuser_extra_annotations.update(
+            {'jupyteronopenshift.org/dask-cluster': '{username}'})
+
     c.JupyterHub.services.extend([
 	{
 	    'name': 'dask-controller',
 	    'url': 'http://localhost:11111',
             'command': ['/opt/app-root/src/start-dask-controller.sh'],
-            'environment': dict(JUPYTERHUB_SERVICE_NAME=jupyterhub_name,
+            'environment': dict(JUPYTERHUB_NAME=jupyterhub_name,
                 DASK_CLUSTER_NAME=dask_cluster_name,
+                DASK_WORKER_MEMORY=worker_memory,
+                DASK_WORKER_REPLICAS=worker_replicas,
                 DASK_MAX_WORKER_REPLICAS=max_worker_replicas),
 	}
     ])

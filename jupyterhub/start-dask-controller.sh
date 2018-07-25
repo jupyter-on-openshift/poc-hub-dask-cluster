@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -x
-
 source /opt/app-root/etc/scl_enable
 
 PORT=${PORT:-11111}

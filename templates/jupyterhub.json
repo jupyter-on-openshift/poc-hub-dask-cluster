@@ -437,8 +437,12 @@
                                         "value": "${DASK_CONTROLLER_API_TOKEN}"
                                     },
                                     {
-                                        "name": "DASK_SCHEDULER_ADDRESS",
-                                        "value": "${DASK_CLUSTER_NAME}-scheduler:8786"
+                                        "name": "DASK_WORKER_MEMORY",
+                                        "value": "${DASK_WORKER_MEMORY}"
+                                    },
+                                    {
+                                        "name": "DASK_WORKER_REPLICAS",
+                                        "value": "${DASK_WORKER_REPLICAS}"
                                     },
                                     {
                                         "name": "DASK_MAX_WORKER_REPLICAS",
@@ -1211,182 +1215,6 @@
                     "deploymentconfig": "${KEYCLOAK_NAME}-database"
                 }
             }
-        },
-	{
-	    "kind": "DeploymentConfig",
-	    "apiVersion": "v1",
-	    "metadata": {
-		"name": "${DASK_CLUSTER_NAME}-worker",
-		"labels": {
-		    "app": "${JUPYTERHUB_NAME}"
-		}
-	    },
-	    "spec": {
-		"strategy": {
-		    "type": "Recreate"
-		},
-		"triggers": [
-		    {
-			"type": "ConfigChange"
-		    },
-		    {
-			"type": "ImageChange",
-			"imageChangeParams": {
-			    "automatic": true,
-			    "containerNames": [
-				"worker"
-			    ],
-			    "from": {
-				"kind": "ImageStreamTag",
-				"name": "${JUPYTERHUB_NAME}-notebook-img:latest"
-			    }
-			}
-		    }
-		],
-		"replicas": "${{DASK_WORKER_REPLICAS}}",
-		"selector": {
-		    "app": "${JUPYTERHUB_NAME}",
-		    "deploymentconfig": "${DASK_CLUSTER_NAME}-worker"
-		},
-		"template": {
-		    "metadata": {
-			"labels": {
-			    "app": "${JUPYTERHUB_NAME}",
-			    "deploymentconfig": "${DASK_CLUSTER_NAME}-worker"
-			}
-		    },
-		    "spec": {
-			"containers": [
-			    {
-				"name": "worker",
-				"image": "${JUPYTERHUB_NAME}-notebook-img:latest",
-				"command": [
-				    "start-daskworker.sh"
-				],
-				"resources": {
-				    "limits": {
-					"memory": "${DASK_WORKER_MEMORY}"
-				    }
-				},
-				"env": [
-				    {
-					"name": "DASK_SCHEDULER_ADDRESS",
-					"value": "${DASK_CLUSTER_NAME}-scheduler:8786"
-				    }
-				]
-			    }
-			]
-		    }
-		}
-	    }
-	},
-	{
-	    "kind": "DeploymentConfig",
-	    "apiVersion": "v1",
-	    "metadata": {
-		"name": "${DASK_CLUSTER_NAME}-scheduler",
-		"labels": {
-		    "app": "${JUPYTERHUB_NAME}"
-		}
-	    },
-	    "spec": {
-		"strategy": {
-		    "type": "Recreate"
-		},
-		"triggers": [
-		    {
-			"type": "ConfigChange"
-		    },
-		    {
-			"type": "ImageChange",
-			"imageChangeParams": {
-			    "automatic": true,
-			    "containerNames": [
-				"scheduler"
-			    ],
-			    "from": {
-				"kind": "ImageStreamTag",
-				"name": "${JUPYTERHUB_NAME}-notebook-img:latest"
-			    }
-			}
-		    }
-		],
-		"replicas": 1,
-		"selector": {
-		    "app": "${JUPYTERHUB_NAME}",
-		    "deploymentconfig": "${DASK_CLUSTER_NAME}-scheduler"
-		},
-		"template": {
-		    "metadata": {
-			"labels": {
-			    "app": "${JUPYTERHUB_NAME}",
-			    "deploymentconfig": "${DASK_CLUSTER_NAME}-scheduler"
-			}
-		    },
-		    "spec": {
-			"containers": [
-			    {
-				"name": "scheduler",
-				"image": "${JUPYTERHUB_NAME}-notebook-img:latest",
-				"command": [
-				    "start-daskscheduler.sh"
-				],
-				"ports": [
-				    {
-					"containerPort": 8786,
-					"protocol": "TCP"
-				    },
-				    {
-					"containerPort": 8787,
-					"protocol": "TCP"
-				    }
-				],
-				"resources": {
-				    "limits": {
-					"memory": "256Mi"
-				    }
-				},
-				"env": [
-				    {
-					"name": "DASK_SCHEDULER_ARGS",
-					"value": "--bokeh-prefix /services/dask-monitor"
-				    }
-				]
-			    }
-			]
-		    }
-		}
-	    }
-	},
-	{
-	    "kind": "Service",
-	    "apiVersion": "v1",
-	    "metadata": {
-		"name": "${DASK_CLUSTER_NAME}-scheduler",
-		"labels": {
-		    "app": "${JUPYTERHUB_NAME}"
-		}
-	    },
-	    "spec": {
-		"ports": [
-		    {
-			"name": "8786-tcp",
-			"protocol": "TCP",
-			"port": 8786,
-			"targetPort": 8786
-		    },
-		    {
-			"name": "8787-tcp",
-			"protocol": "TCP",
-			"port": 8787,
-			"targetPort": 8787
-		    }
-		],
-		"selector": {
-		    "app": "${JUPYTERHUB_NAME}",
-		    "deploymentconfig": "${DASK_CLUSTER_NAME}-scheduler"
-		}
-	    }
-	}
+        }
     ]
 }

@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import threading
 
 from urllib.parse import quote
 
@@ -15,8 +16,18 @@ os.environ['KUBERNETES_SERVICE_PORT'] = '443'
 from openshift import config as oconfig
 from openshift import client as oclient
 
-from kubernetes import client as kclient
-from kubernetes.client.models import V1ObjectMeta, V1Scale, V1ScaleSpec
+from openshift.client.models import (V1DeploymentConfig,
+        V1DeploymentConfigSpec, V1DeploymentStrategy,
+        V1DeploymentTriggerPolicy, V1DeploymentTriggerImageChangeParams)
+
+from kubernetes import client as kclient, watch as kwatch
+
+from kubernetes.client.models import (V1ObjectMeta, V1Scale, V1ScaleSpec,
+        V1Service, V1ObjectReference, V1PodTemplateSpec, V1PodSpec,
+        V1Container, V1ContainerPort, V1ResourceRequirements, V1EnvVar,
+        V1ServiceSpec, V1ServicePort)
+
+from kubernetes.client.rest import ApiException
 
 from wrapt import decorator
 
@@ -33,6 +44,8 @@ auth = HubAuth(api_token=os.environ['JUPYTERHUB_API_TOKEN'],
 
 jupyterhub_service_name = os.environ.get('JUPYTERHUB_SERVICE_NAME', '')
 prefix = os.environ.get('JUPYTERHUB_SERVICE_PREFIX', '')
+
+jupyterhub_name = os.environ.get('JUPYTERHUB_NAME', '')
 
 application = Flask(__name__)
 
@@ -141,3 +154,257 @@ def restart(user):
     return jsonify()
 
 application.register_blueprint(controller, url_prefix=prefix.rstrip('/'))
+
+worker_replicas = int(os.environ.get('DASK_WORKER_REPLICAS', 3))
+worker_memory = os.environ.get('DASK_WORKER_MEMORY', '512Mi')
+
+def create_cluster(name):
+    scheduler_name = '%s-scheduler-%s' % (dask_cluster_name, name)
+
+    worker_name = '%s-worker-%s' % (dask_cluster_name, name)
+
+    worker_deployment = V1DeploymentConfig(
+        kind='DeploymentConfig',
+        api_version='apps.openshift.io/v1',
+        metadata = V1ObjectMeta(
+            name=worker_name,
+            namespace=namespace,
+            labels={'app': jupyterhub_name}
+        ),
+        spec=V1DeploymentConfigSpec(
+            strategy=V1DeploymentStrategy(
+                type='Recreate'
+            ),
+            triggers=[
+                V1DeploymentTriggerPolicy(
+                    type='ConfigChange'
+                ),
+                V1DeploymentTriggerPolicy(
+                    type='ImageChange',
+                    image_change_params=V1DeploymentTriggerImageChangeParams(
+                        automatic=True,
+                        container_names=['worker'],
+                        _from=V1ObjectReference(
+                            kind='ImageStreamTag',
+                            name='%s-notebook-img:latest' % jupyterhub_name
+                        )
+                    )
+                )
+            ],
+            replicas=worker_replicas,
+            selector={
+                'app': jupyterhub_name,
+                'deploymentconfig': scheduler_name
+            },
+            template=V1PodTemplateSpec(
+                metadata = V1ObjectMeta(
+                    labels={
+                        'app': jupyterhub_name,
+                        'deploymentconfig': scheduler_name
+                    }
+                ),
+                spec=V1PodSpec(
+                    containers=[
+                        V1Container(
+                            name='worker',
+                            image='%s-notebook-img:latest' % jupyterhub_name,
+                            command=['start-daskworker.sh'],
+                            ports=[
+                                V1ContainerPort(
+                                    container_port=8786,
+                                    protocol='TCP'
+                                ),
+                                V1ContainerPort(
+                                    container_port=8787,
+                                    protocol='TCP'
+                                )
+                            ],
+                            resources=V1ResourceRequirements(
+                                limits={'memory':worker_memory}
+                            ),
+                            env=[
+                                V1EnvVar(
+                                    name='DASK_SCHEDULER_ADDRESS',
+                                    value='%s:8786' % scheduler_name
+                                )
+                            ]
+                        )
+                    ]
+                )
+            )
+        )
+    )
+
+    scheduler_deployment = V1DeploymentConfig(
+        kind='DeploymentConfig',
+        api_version='apps.openshift.io/v1',
+        metadata = V1ObjectMeta(
+            name=scheduler_name,
+            namespace=namespace,
+            labels={'app': jupyterhub_name}
+        ),
+        spec=V1DeploymentConfigSpec(
+            strategy=V1DeploymentStrategy(
+                type='Recreate'
+            ),
+            triggers=[
+                V1DeploymentTriggerPolicy(
+                    type='ConfigChange'
+                ),
+                V1DeploymentTriggerPolicy(
+                    type='ImageChange',
+                    image_change_params=V1DeploymentTriggerImageChangeParams(
+                        automatic=True,
+                        container_names=['scheduler'],
+                        _from=V1ObjectReference(
+                            kind='ImageStreamTag',
+                            name='%s-notebook-img:latest' % jupyterhub_name
+                        )
+                    )
+                )
+            ],
+            replicas=1,
+            selector={
+                'app': jupyterhub_name,
+                'deploymentconfig': scheduler_name
+            },
+            template=V1PodTemplateSpec(
+                metadata = V1ObjectMeta(
+                    labels={
+                        'app': jupyterhub_name,
+                        'deploymentconfig': scheduler_name
+                    }
+                ),
+                spec=V1PodSpec(
+                    containers=[
+                        V1Container(
+                            name='scheduler',
+                            image='%s-notebook-img:latest' % jupyterhub_name,
+                            command=['start-daskscheduler.sh'],
+                            ports=[
+                                V1ContainerPort(
+                                    container_port=8786,
+                                    protocol='TCP'
+                                ),
+                                V1ContainerPort(
+                                    container_port=8787,
+                                    protocol='TCP'
+                                )
+                            ],
+                            resources=V1ResourceRequirements(
+                                limits={'memory':'256Mi'}
+                            ),
+                            env=[
+                                V1EnvVar(
+                                    name='DASK_SCHEDULER_ARGS',
+                                    value='--bokeh-prefix /services/dask-monitor'
+                                )
+                            ]
+                        )
+                    ]
+                )
+            )
+        )
+    )
+
+    scheduler_service = V1Service(
+        kind='Service',
+        api_version='v1',
+        metadata = V1ObjectMeta(
+            name=scheduler_name,
+            namespace=namespace,
+            labels={'app': jupyterhub_name}
+        ),
+        spec=V1ServiceSpec(
+            ports=[
+                V1ServicePort(
+                    name='8786-tcp',
+                    protocol='TCP',
+                    port=8786,
+                    target_port=8786
+                ),
+                V1ServicePort(
+                    name='8787-tcp',
+                    protocol='TCP',
+                    port=8787,
+                    target_port=8787
+                )
+            ],
+            selector={
+                'app': jupyterhub_name,
+                'deploymentconfig': scheduler_name
+            }
+        )
+    )
+
+    try:
+        appsopenshiftiov1api.create_namespaced_deployment_config(
+                namespace, worker_deployment)
+
+    except ApiException as e:
+        if e.status != 409:
+            print('ERROR: Error creating worker deployment. %s' % e)
+
+    except Exception as e:
+        print('ERROR: Error creating worker deployment. %s' % e)
+
+    try:
+        appsopenshiftiov1api.create_namespaced_deployment_config(
+                namespace, scheduler_deployment)
+
+    except ApiException as e:
+        if e.status != 409:
+            print('ERROR: Error creating scheduler deployment. %s' % e)
+
+    except Exception as e:
+        print('ERROR: Error creating scheduler deployment. %s' % e)
+
+    try:
+        corev1api.create_namespaced_service(
+                namespace, scheduler_service)
+
+    except ApiException as e:
+        if e.status != 409:
+            print('ERROR: Error creating service. %s' % e)
+
+    except Exception as e:
+        print('ERROR: Error creating service. %s' % e)
+
+def cluster_exists(name):
+    try:
+        scheduler_name = '%s-scheduler-%s' % (dask_cluster_name, name)
+
+        dc = appsopenshiftiov1api.read_namespaced_deployment_config(
+                scheduler_name, namespace)
+
+    except ApiException as e:
+        if e.status == 404:
+            return False
+
+        print('ERROR: Error querying deployment config. %s' % e)
+
+    else:
+        return True
+
+def new_notebook_added(pod):
+    name = pod.metadata.annotations.get('jupyteronopenshift.org/dask-cluster')
+    if name:
+        found = cluster_exists(name)
+        if found is not None and not found:
+            create_cluster(name)
+
+def monitor_pods():
+    watcher = kwatch.Watch()
+    for item in watcher.stream(corev1api.list_namespaced_pod,
+            namespace=namespace, timeout_seconds=0):
+
+        if item['type'] == 'ADDED':
+            pod = item['object']
+            labels = pod.metadata.labels
+            if labels.get('app') == jupyterhub_name:
+                if labels.get('component') == 'singleuser-server':
+                    new_notebook_added(pod)
+
+thread = threading.Thread(target=monitor_pods)
+thread.set_daemon = True
+thread.start()
