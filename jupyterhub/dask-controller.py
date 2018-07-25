@@ -25,7 +25,7 @@ from kubernetes import client as kclient, watch as kwatch
 from kubernetes.client.models import (V1ObjectMeta, V1Scale, V1ScaleSpec,
         V1Service, V1ObjectReference, V1PodTemplateSpec, V1PodSpec,
         V1Container, V1ContainerPort, V1ResourceRequirements, V1EnvVar,
-        V1ServiceSpec, V1ServicePort)
+        V1ServiceSpec, V1ServicePort, V1DeleteOptions)
 
 from kubernetes.client.rest import ApiException
 
@@ -156,6 +156,7 @@ application.register_blueprint(controller, url_prefix=prefix.rstrip('/'))
 
 worker_replicas = int(os.environ.get('DASK_WORKER_REPLICAS', 3))
 worker_memory = os.environ.get('DASK_WORKER_MEMORY', '512Mi')
+idle_timeout = int(os.environ.get('DASK_IDLE_CLUSTER_TIMEOUT', 600))
 
 def create_cluster(name):
     scheduler_name = '%s-scheduler-%s' % (dask_cluster_name, name)
@@ -165,10 +166,14 @@ def create_cluster(name):
     worker_deployment = V1DeploymentConfig(
         kind='DeploymentConfig',
         api_version='apps.openshift.io/v1',
-        metadata = V1ObjectMeta(
+        metadata=V1ObjectMeta(
             name=worker_name,
             namespace=namespace,
-            labels={'app': jupyterhub_name}
+            labels={
+                'app': jupyterhub_name,
+                'component': 'dask-worker',
+                'dask-cluster': name
+            }
         ),
         spec=V1DeploymentConfigSpec(
             strategy=V1DeploymentStrategy(
@@ -237,10 +242,14 @@ def create_cluster(name):
     scheduler_deployment = V1DeploymentConfig(
         kind='DeploymentConfig',
         api_version='apps.openshift.io/v1',
-        metadata = V1ObjectMeta(
+        metadata=V1ObjectMeta(
             name=scheduler_name,
             namespace=namespace,
-            labels={'app': jupyterhub_name}
+            labels={
+                'app': jupyterhub_name,
+                'component': 'dask-scheduler',
+                'dask-cluster': name
+            }
         ),
         spec=V1DeploymentConfigSpec(
             strategy=V1DeploymentStrategy(
@@ -404,6 +413,94 @@ def monitor_pods():
                 if labels.get('component') == 'singleuser-server':
                     new_notebook_added(pod)
 
-thread = threading.Thread(target=monitor_pods)
-thread.set_daemon = True
-thread.start()
+thread1 = threading.Thread(target=monitor_pods)
+thread1.set_daemon = True
+thread1.start()
+
+active_clusters = {}
+
+def cull_clusters():
+
+    while True:
+        try:
+            deployments = appsopenshiftiov1api.list_namespaced_deployment_config(
+                    namespace)
+
+        except Exception as e:
+            print('ERROR: Cannot query deployments.')
+
+        else:
+            for deployment in deployments.items:
+                labels = deployment.metadata.labels
+                if labels.get('component') == 'dask-scheduler':
+                    name = labels.get('dask-cluster', '')
+                    active_clusters.setdefault(name, None)
+
+        try:
+            pods = corev1api.list_namespaced_pod(namespace)
+
+        except Exception as e:
+            print('ERROR: Cannot query pods.')
+
+        else:
+            for pod in pods.items:
+                annotations = pod.metadata.annotations
+                name = annotations.get('jupyteronopenshift.org/dask-cluster')
+
+                if name and name in active_clusters:
+                    del active_clusters[name]
+
+        now = time.time()
+
+        for name, timestamp in list(active_clusters.items()):
+            if timestamp is None:
+                active_clusters[name] = now
+
+            else:
+                if now - timestamp > idle_timeout:
+                    print('INFO: deleting dask cluster %s.' % name)
+
+                    okay = True
+
+                    scheduler_name = '%s-scheduler-%s' % (dask_cluster_name, name)
+
+                    try:
+                        appsopenshiftiov1api.delete_namespaced_deployment_config(
+                                scheduler_name, namespace, V1DeleteOptions())
+
+                    except Exception as e:
+                        okay = False
+
+                        print('ERROR: Could not delete scheduler %s: %s' %
+                                (scheduler_name, e))
+
+                    try:
+                        corev1api.delete_namespaced_service(
+                                scheduler_name, namespace, V1DeleteOptions())
+
+                    except Exception as e:
+                        okay = False
+
+                        print('ERROR: Could not delete service %s: %s' %
+                                (scheduler_name, e))
+
+                    worker_name = '%s-worker-%s' % (dask_cluster_name, name)
+
+                    try:
+                        appsopenshiftiov1api.delete_namespaced_deployment_config(
+                                worker_name, namespace, V1DeleteOptions())
+
+                    except Exception as e:
+                        okay = False
+
+                        print('ERROR: Could not delete worker %s: %s' %
+                                (worker_name, e))
+
+                    if okay:
+                        del active_clusters[name]
+
+        time.sleep(30.0)
+
+thread2 = threading.Thread(target=cull_clusters)
+thread2.set_daemon = True
+thread2.start()

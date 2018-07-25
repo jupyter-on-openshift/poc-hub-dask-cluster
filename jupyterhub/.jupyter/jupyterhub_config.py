@@ -124,6 +124,7 @@ dask_api_token = os.environ.get('DASK_CONTROLLER_API_TOKEN')
 worker_replicas = os.environ.get('DASK_WORKER_REPLICAS', '2')
 max_worker_replicas = os.environ.get('DASK_MAX_WORKER_REPLICAS', '3')
 worker_memory = os.environ.get('DASK_WORKER_MEMORY', '512Mi')
+idle_cluster_timeout = os.environ.get('DASK_IDLE_CLUSTER_TIMEOUT', '600')
 
 def modify_pod_hook(spawner, pod):
     if dask_cluster_name and dask_api_token:
@@ -150,7 +151,9 @@ if dask_cluster_name and dask_api_token:
                 DASK_CLUSTER_NAME=dask_cluster_name,
                 DASK_WORKER_MEMORY=worker_memory,
                 DASK_WORKER_REPLICAS=worker_replicas,
-                DASK_MAX_WORKER_REPLICAS=max_worker_replicas),
+                DASK_MAX_WORKER_REPLICAS=max_worker_replicas,
+                DASK_IDLE_CLUSTER_TIMEOUT=idle_cluster_timeout
+                ),
         }
     ])
 

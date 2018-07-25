@@ -57,6 +57,10 @@
             "value": "3600"
         },
         {
+            "name": "DASK_IDLE_CLUSTER_TIMEOUT",
+            "value": "600"
+        },
+        {
             "name": "POSTGRESQL_VOLUME_SIZE",
             "value": "1Gi",
             "required": true
@@ -402,6 +406,10 @@
                                     {
                                         "name": "JUPYTERHUB_IDLE_TIMEOUT",
                                         "value": "${JUPYTERHUB_IDLE_TIMEOUT}"
+                                    },
+                                    {
+                                        "name": "DASK_IDLE_CLUSTER_TIMEOUT",
+                                        "value": "${DASK_IDLE_CLUSTER_TIMEOUT}"
                                     },
                                     {
                                         "name": "JUPYTERHUB_ENABLE_LAB",
