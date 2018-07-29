@@ -468,6 +468,13 @@ def cull_clusters():
                         appsopenshiftiov1api.delete_namespaced_deployment_config(
                                 scheduler_name, namespace, V1DeleteOptions())
 
+                    except ApiException as e:
+                        if e.status != 404:
+                            okay = False
+
+                            print('ERROR: Could not delete scheduler %s: %s' %
+                                    (scheduler_name, e))
+
                     except Exception as e:
                         okay = False
 
@@ -477,6 +484,13 @@ def cull_clusters():
                     try:
                         corev1api.delete_namespaced_service(
                                 scheduler_name, namespace, V1DeleteOptions())
+
+                    except ApiException as e:
+                        if e.status != 404:
+                            okay = False
+
+                            print('ERROR: Could not delete service %s: %s' %
+                                    (scheduler_name, e))
 
                     except Exception as e:
                         okay = False
@@ -489,6 +503,13 @@ def cull_clusters():
                     try:
                         appsopenshiftiov1api.delete_namespaced_deployment_config(
                                 worker_name, namespace, V1DeleteOptions())
+
+                    except ApiException as e:
+                        if e.status != 404:
+                            okay = False
+
+                            print('ERROR: Could not delete worker %s: %s' %
+                                    (worker_name, e))
 
                     except Exception as e:
                         okay = False
