@@ -525,7 +525,7 @@
                     "app": "${JUPYTERHUB_NAME}"
                 },
                 "annotations": {
-                    "haproxy.router.openshift.io/hsts_header": "max-age=31536000; includeSubDomains"
+                    "haproxy.router.openshift.io/hsts_header": "max-age=31536000;includeSubDomains"
                 }
             },
             "spec": {
@@ -1059,7 +1059,7 @@
                     "app": "${JUPYTERHUB_NAME}"
                 },
                 "annotations": {
-                    "haproxy.router.openshift.io/hsts_header": "max-age=31536000; includeSubDomains"
+                    "haproxy.router.openshift.io/hsts_header": "max-age=31536000;includeSubDomains"
                 }
             },
             "spec": {
