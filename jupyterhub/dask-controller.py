@@ -17,7 +17,7 @@ os.environ['KUBERNETES_SERVICE_PORT'] = '443'
 from openshift import config as oconfig
 from openshift import client as oclient
 
-from openshift.dynamic import DynamicClient
+from openshift.dynamic import DynamicClient, ResourceInstance
 
 from openshift.client.models import (V1DeploymentConfig,
         V1DeploymentConfigSpec, V1DeploymentStrategy,
@@ -402,8 +402,7 @@ def cluster_exists(name):
     try:
         scheduler_name = '%s-scheduler-%s' % (dask_cluster_name, name)
 
-        dc = appsopenshiftiov1api.read_namespaced_deployment_config(
-                scheduler_name, namespace)
+        deploymentconfig_resource.get(namespace=namespace, name=scheduler_name)
 
     except ApiException as e:
         if e.status == 404:
@@ -415,22 +414,26 @@ def cluster_exists(name):
         return True
 
 def new_notebook_added(pod):
-    name = pod.metadata.annotations.get('jupyteronopenshift.org/dask-cluster')
-    if name:
-        found = cluster_exists(name)
-        if found is not None and not found:
-            create_cluster(name)
+    annotations = pod.metadata.annotations
+
+    if annotations:
+        name = annotations['jupyteronopenshift.org/dask-cluster']
+        if name:
+            found = cluster_exists(name)
+            if found is not None and not found:
+                create_cluster(name)
 
 def monitor_pods():
     watcher = kwatch.Watch()
-    for item in watcher.stream(corev1api.list_namespaced_pod,
-            namespace=namespace, timeout_seconds=0):
+    for item in watcher.stream(pod_resource.get,
+            namespace=namespace, timeout_seconds=0,
+            serialize=False):
 
         if item['type'] == 'ADDED':
-            pod = item['object']
+            pod = ResourceInstance(pod_resource, item['object'])
             labels = pod.metadata.labels
-            if labels.get('app') == jupyterhub_name:
-                if labels.get('component') == 'singleuser-server':
+            if labels['app'] == jupyterhub_name:
+                if labels['component'] == 'singleuser-server':
                     new_notebook_added(pod)
 
 thread1 = threading.Thread(target=monitor_pods)
