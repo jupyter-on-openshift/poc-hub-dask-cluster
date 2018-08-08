@@ -147,7 +147,9 @@ if dask_cluster_name and dask_api_token:
             'name': 'dask-controller',
             'url': 'http://localhost:11111',
             'command': ['/opt/app-root/src/start-dask-controller.sh'],
-            'environment': dict(JUPYTERHUB_NAME=jupyterhub_name,
+            'environment': dict(
+                PYTHON_UNBUFFERED='1',
+                JUPYTERHUB_NAME=jupyterhub_name,
                 DASK_CLUSTER_NAME=dask_cluster_name,
                 DASK_WORKER_MEMORY=worker_memory,
                 DASK_WORKER_REPLICAS=worker_replicas,
@@ -165,5 +167,8 @@ if idle_timeout and int(idle_timeout):
             'name': 'cull-idle',
             'admin': True,
             'command': ['cull-idle-servers', '--timeout=%s' % idle_timeout],
+            'environment': dict(
+                PYTHON_UNBUFFERED='1',
+            )
         }
     ])
