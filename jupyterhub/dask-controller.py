@@ -117,10 +117,7 @@ scale_template = string.Template("""
     "apiVersion": "extensions/v1beta1",
     "metadata": {
         "namespace": "${namespace}",
-	"name": "${name}",
-	"labels": {
-	    "app": "${cluster}"
-	}
+	"name": "${name}"
     },
     "spec": {
 	"replicas": ${replicas}
@@ -144,7 +141,7 @@ def scale(user):
     name = '%s-worker-%s' % (dask_cluster_name, user['name'])
 
     body = json.loads(scale_template.safe_substitute(namespace=namespace,
-            cluster=dask_cluster_name, name=name, replicas=replicas))
+            name=name, replicas=replicas))
 
     deploymentconfig_resource.scale.replace(namespace=namespace, body=body)
 
