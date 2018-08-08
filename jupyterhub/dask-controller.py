@@ -2,6 +2,7 @@ import os
 import time
 import json
 import threading
+import string
 
 from urllib.parse import quote
 
@@ -15,6 +16,8 @@ os.environ['KUBERNETES_SERVICE_PORT'] = '443'
 
 from openshift import config as oconfig
 from openshift import client as oclient
+
+from openshift.dynamic import DynamicClient
 
 from openshift.client.models import (V1DeploymentConfig,
         V1DeploymentConfigSpec, V1DeploymentStrategy,
@@ -35,6 +38,10 @@ with open('/var/run/secrets/kubernetes.io/serviceaccount/namespace') as fp:
     namespace = fp.read().strip()
 
 oconfig.load_incluster_config()
+
+from kubernetes.client.api_client import ApiClient
+
+dyn_client = DynamicClient(ApiClient())
 
 corev1api = kclient.CoreV1Api()
 appsopenshiftiov1api = oclient.AppsOpenshiftIoV1Api()
@@ -79,16 +86,17 @@ def admin_users_only(wrapped, instance, args, kwargs):
 dask_cluster_name = os.environ.get('DASK_CLUSTER_NAME')
 dask_scheduler_name = '%s-scheduler' % dask_cluster_name
 
+pod_resource = dyn_client.resources.get(api_version='v1', kind='Pod')
+
 def get_pods(name):
-    pods = corev1api.list_namespaced_pod(namespace)
+    dask_worker_name = '%s-worker-%s' % (dask_cluster_name, name)
+
+    pods = pod_resource.get(namespace=namespace)
 
     details = []
 
-    dask_worker_name = '%s-worker-%s' % (dask_cluster_name, name)
-
     for pod in pods.items:
-        deployment = pod.metadata.labels.get('deploymentconfig')
-        if deployment == dask_worker_name:
+        if pod.metadata.labels['deploymentconfig'] == dask_worker_name:
             details.append((pod.metadata.name, pod.status.phase))
 
     return details
@@ -99,6 +107,26 @@ def pods(user):
     return jsonify(get_pods(user['name']))
 
 max_worker_replicas = int(os.environ.get('DASK_MAX_WORKER_REPLICAS', '0'))
+
+deploymentconfig_resource = dyn_client.resources.get(
+        api_version='apps.openshift.io/v1', kind='DeploymentConfig')
+
+scale_template = string.Template("""
+{
+    "kind": "Scale",
+    "apiVersion": "extensions/v1beta1",
+    "metadata": {
+        "namespace": "${namespace}",
+	"name": "${cluster}-worker-${username}",
+	"labels": {
+	    "app": "${cluster}"
+	}
+    },
+    "spec": {
+	"replicas": ${replicas}
+    }
+}
+""")
 
 @controller.route('/scale', methods=['GET', 'OPTIONS', 'POST'])
 @authenticated_user
@@ -113,20 +141,10 @@ def scale(user):
     if max_worker_replicas > 0:
         replicas = min(replicas, max_worker_replicas)
 
-    scale = V1Scale()
-    scale.kind = 'Scale'
-    scale.api_version = 'extensions/v1beta1'
+    body = json.loads(scale_template.safe_substitute(namespace=namespace,
+            cluster=dask_cluster_name, username=user['name'], replicas=replicas))
 
-    dask_worker_name = '%s-worker-%s' % (dask_cluster_name, user['name'])
-
-    scale.metadata = V1ObjectMeta(
-            namespace=namespace, name=dask_worker_name,
-            labels={'app': dask_cluster_name})
-
-    scale.spec = V1ScaleSpec(replicas=replicas)
-
-    result = appsopenshiftiov1api.replace_namespaced_deployment_config_scale(
-            dask_worker_name, namespace, scale)
+    deploymentconfig_resource.scale.replace(namespace=namespace, body=body)
 
     return jsonify()
 
