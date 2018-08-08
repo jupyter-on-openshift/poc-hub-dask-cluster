@@ -25,7 +25,7 @@ from openshift.client.models import (V1DeploymentConfig,
 
 from kubernetes import client as kclient, watch as kwatch
 
-from kubernetes.client.models import (V1ObjectMeta, V1Scale, V1ScaleSpec,
+from kubernetes.client.models import (V1ObjectMeta,
         V1Service, V1ObjectReference, V1PodTemplateSpec, V1PodSpec,
         V1Container, V1ContainerPort, V1ResourceRequirements, V1EnvVar,
         V1ServiceSpec, V1ServicePort, V1DeleteOptions)
@@ -117,7 +117,7 @@ scale_template = string.Template("""
     "apiVersion": "extensions/v1beta1",
     "metadata": {
         "namespace": "${namespace}",
-	"name": "${cluster}-worker-${username}",
+	"name": "${name}",
 	"labels": {
 	    "app": "${cluster}"
 	}
@@ -141,32 +141,37 @@ def scale(user):
     if max_worker_replicas > 0:
         replicas = min(replicas, max_worker_replicas)
 
+    name = '%s-worker-%s' % (dask_cluster_name, user['name'])
+
     body = json.loads(scale_template.safe_substitute(namespace=namespace,
-            cluster=dask_cluster_name, username=user['name'], replicas=replicas))
+            cluster=dask_cluster_name, name=name, replicas=replicas))
 
     deploymentconfig_resource.scale.replace(namespace=namespace, body=body)
 
     return jsonify()
 
-@controller.route('/restart', methods=['GET', 'OPTIONS', 'POST'])
-@authenticated_user
-def restart(user):
-    patch = {
-        'spec': {
-            'template': {
-                'metadata': {
-                    'annotations': {
-                        'dask-controller/restart': str(time.time())
-                    }
+restart_template = string.Template("""
+{
+    "spec": {
+        "template": {
+            "metadata": {
+                "annotations": {
+                    "dask-controller/restart": "${time}"
                 }
             }
         }
     }
+}
+""")
 
-    dask_worker_name = '%s-worker-%s' % (dask_cluster_name, user['name'])
+@controller.route('/restart', methods=['GET', 'OPTIONS', 'POST'])
+@authenticated_user
+def restart(user):
+    name = '%s-worker-%s' % (dask_cluster_name, user['name'])
 
-    appsopenshiftiov1api.patch_namespaced_deployment_config(
-            dask_worker_name, namespace, patch)
+    body = json.loads(restart_template.safe_substitute(time=time.time()))
+
+    deploymentconfig_resource.patch(namespace=namespace, name=name, body=body)
 
     return jsonify()
 
