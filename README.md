@@ -23,6 +23,8 @@ If deploying to an OpenShift environment that enforces quotas, you must have a m
 
 A user can scale up the number of Dask workers from the default of 3 up to a maximum of 5, from the JupyterHub control panel. They will need 1GiB for each additional worker.
 
+For storage, two 1GiB persistent volumes are required for the PostgreSQL databases for KeyCloak and JupyterHub. Further, each user will need a 1GiB volume for notebook storage.
+
 Registering a user
 ------------------
 
