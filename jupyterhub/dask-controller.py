@@ -16,26 +16,12 @@ from jupyterhub.services.auth import HubAuth
 os.environ['KUBERNETES_SERVICE_HOST'] = 'openshift.default.svc.cluster.local'
 os.environ['KUBERNETES_SERVICE_PORT'] = '443'
 
-from openshift import config as oconfig
-from openshift import client as oclient
-
 from kubernetes.client.rest import ApiException
 
 from openshift.config import load_incluster_config
 from openshift.client.api_client import ApiClient
 from openshift.dynamic import DynamicClient, ResourceInstance
 from openshift.watch import Watch
-
-from openshift.client.models import (V1DeploymentConfig,
-        V1DeploymentConfigSpec, V1DeploymentStrategy,
-        V1DeploymentTriggerPolicy, V1DeploymentTriggerImageChangeParams)
-
-from kubernetes import client as kclient
-
-from kubernetes.client.models import (V1ObjectMeta,
-        V1Service, V1ObjectReference, V1PodTemplateSpec, V1PodSpec,
-        V1Container, V1ContainerPort, V1ResourceRequirements, V1EnvVar,
-        V1ServiceSpec, V1ServicePort)
 
 with open('/var/run/secrets/kubernetes.io/serviceaccount/namespace') as fp:
     namespace = fp.read().strip()
@@ -44,8 +30,13 @@ load_incluster_config()
 
 dyn_client = DynamicClient(ApiClient())
 
-corev1api = kclient.CoreV1Api()
-appsopenshiftiov1api = oclient.AppsOpenshiftIoV1Api()
+deploymentconfig_resource = dyn_client.resources.get(
+        api_version='apps.openshift.io/v1', kind='DeploymentConfig')
+
+service_resource = dyn_client.resources.get(
+        api_version='v1', kind='Service')
+
+pod_resource = dyn_client.resources.get(api_version='v1', kind='Pod')
 
 auth = HubAuth(api_token=os.environ['JUPYTERHUB_API_TOKEN'],
         cookie_cache_max_age=60)
@@ -87,8 +78,6 @@ def admin_users_only(wrapped, instance, args, kwargs):
 dask_cluster_name = os.environ.get('DASK_CLUSTER_NAME')
 dask_scheduler_name = '%s-scheduler' % dask_cluster_name
 
-pod_resource = dyn_client.resources.get(api_version='v1', kind='Pod')
-
 def get_pods(name):
     dask_worker_name = '%s-worker-%s' % (dask_cluster_name, name)
 
@@ -109,21 +98,16 @@ def pods(user):
 
 max_worker_replicas = int(os.environ.get('DASK_MAX_WORKER_REPLICAS', '0'))
 
-deploymentconfig_resource = dyn_client.resources.get(
-        api_version='apps.openshift.io/v1', kind='DeploymentConfig')
-service_resource = dyn_client.resources.get(
-        api_version='v1', kind='Service')
-
 scale_template = string.Template("""
 {
     "kind": "Scale",
     "apiVersion": "extensions/v1beta1",
     "metadata": {
         "namespace": "${namespace}",
-	"name": "${name}"
+        "name": "${name}"
     },
     "spec": {
-	"replicas": ${replicas}
+        "replicas": ${replicas}
     }
 }
 """)
@@ -181,196 +165,219 @@ worker_replicas = int(os.environ.get('DASK_WORKER_REPLICAS', 3))
 worker_memory = os.environ.get('DASK_WORKER_MEMORY', '512Mi')
 idle_timeout = int(os.environ.get('DASK_IDLE_CLUSTER_TIMEOUT', 600))
 
+worker_deploymentconfig_template = string.Template("""
+{
+    "apiVersion": "apps.openshift.io/v1",
+    "kind": "DeploymentConfig",
+    "metadata": {
+        "labels": {
+            "app": "${application}",
+            "component": "dask-worker",
+            "dask-cluster": "${cluster}"
+        },
+        "name": "${name}",
+        "namespace": "${namespace}"
+    },
+    "spec": {
+        "replicas": ${replicas},
+        "selector": {
+            "app": "${application}",
+            "deploymentconfig": "${name}"
+        },
+        "strategy": {
+            "type": "Recreate"
+        },
+        "triggers": [
+            {
+                "type": "ConfigChange"
+            },
+            {
+                "type": "ImageChange",
+                "imageChangeParams": {
+                    "automatic": true,
+                    "containerNames": [
+                        "worker"
+                    ],
+                    "from": {
+                        "kind": "ImageStreamTag",
+                        "name": "${application}-notebook-img:latest",
+                        "namespace": "${namespace}"
+                    }
+                }
+            }
+        ],
+        "template": {
+            "metadata": {
+                "labels": {
+                    "app": "${application}",
+                    "deploymentconfig": "${name}"
+                }
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "worker",
+                        "image": "${application}-notebook-img:latest",
+                        "command": [
+                            "start-daskworker.sh"
+                        ],
+                        "env": [
+                            {
+                                "name": "DASK_SCHEDULER_ADDRESS",
+                                "value": "${scheduler}:8786"
+                            }
+                        ],
+                        "ports": [
+                            {
+                                "containerPort": 8786,
+                                "protocol": "TCP"
+                            },
+                            {
+                                "containerPort": 8787,
+                                "protocol": "TCP"
+                            }
+                        ],
+                        "resources": {
+                            "limits": {
+                                "memory": "${memory}"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
+""")
+
+scheduler_deploymentconfig_template = string.Template("""
+{
+    "apiVersion": "apps.openshift.io/v1",
+    "kind": "DeploymentConfig",
+    "metadata": {
+        "labels": {
+            "app": "${application}",
+            "component": "dask-scheduler",
+            "dask-cluster": "${cluster}"
+        },
+        "name": "${name}",
+        "namespace": "${namespace}"
+    },
+    "spec": {
+        "replicas": 1,
+        "selector": {
+            "app": "${application}",
+            "deploymentconfig": "${name}"
+        },
+        "strategy": {
+            "type": "Recreate"
+        },
+        "triggers": [
+            {
+                "type": "ConfigChange"
+            },
+            {
+                "type": "ImageChange",
+                "imageChangeParams": {
+                    "automatic": true,
+                    "containerNames": [
+                        "scheduler"
+                    ],
+                    "from": {
+                        "kind": "ImageStreamTag",
+                        "name": "${application}-notebook-img:latest",
+                        "namespace": "${namespace}"
+                    }
+                }
+            }
+        ],
+        "template": {
+            "metadata": {
+                "labels": {
+                    "app": "${application}",
+                    "deploymentconfig": "${name}"
+                }
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "scheduler",
+                        "image": "${application}-notebook-img:latest",
+                        "command": [
+                            "start-daskscheduler.sh"
+                        ],
+                        "ports": [
+                            {
+                                "containerPort": 8786,
+                                "protocol": "TCP"
+                            },
+                            {
+                                "containerPort": 8787,
+                                "protocol": "TCP"
+                            }
+                        ],
+                        "resources": {
+                            "limits": {
+                                "memory": "256Mi"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
+""")
+
+scheduler_service_template = string.Template("""
+{
+    "kind": "Service",
+    "apiVersion": "v1",
+    "metadata": {
+        "namespace": "${namespace}",
+        "name": "${name}",
+        "labels": {
+            "app": "${application}"
+        }
+    },
+    "spec": {
+        "ports": [
+            {
+                "name": "8786-tcp",
+                "protocol": "TCP",
+                "port": 8786,
+                "targetPort": 8786
+            },
+            {
+                "name": "8787-tcp",
+                "protocol": "TCP",
+                "port": 8787,
+                "targetPort": 8787
+            }
+        ],
+        "selector": {
+            "app": "${application}",
+            "deploymentconfig": "${name}"
+        }
+    }
+}
+""")
+
 def create_cluster(name):
     scheduler_name = '%s-scheduler-%s' % (dask_cluster_name, name)
 
     worker_name = '%s-worker-%s' % (dask_cluster_name, name)
 
-    worker_deployment = V1DeploymentConfig(
-        kind='DeploymentConfig',
-        api_version='apps.openshift.io/v1',
-        metadata=V1ObjectMeta(
-            name=worker_name,
-            namespace=namespace,
-            labels={
-                'app': jupyterhub_name,
-                'component': 'dask-worker',
-                'dask-cluster': name
-            }
-        ),
-        spec=V1DeploymentConfigSpec(
-            strategy=V1DeploymentStrategy(
-                type='Recreate'
-            ),
-            triggers=[
-                V1DeploymentTriggerPolicy(
-                    type='ConfigChange'
-                ),
-                V1DeploymentTriggerPolicy(
-                    type='ImageChange',
-                    image_change_params=V1DeploymentTriggerImageChangeParams(
-                        automatic=True,
-                        container_names=['worker'],
-                        _from=V1ObjectReference(
-                            kind='ImageStreamTag',
-                            name='%s-notebook-img:latest' % jupyterhub_name
-                        )
-                    )
-                )
-            ],
-            replicas=worker_replicas,
-            selector={
-                'app': jupyterhub_name,
-                'deploymentconfig': scheduler_name
-            },
-            template=V1PodTemplateSpec(
-                metadata = V1ObjectMeta(
-                    labels={
-                        'app': jupyterhub_name,
-                        'deploymentconfig': scheduler_name
-                    }
-                ),
-                spec=V1PodSpec(
-                    containers=[
-                        V1Container(
-                            name='worker',
-                            image='%s-notebook-img:latest' % jupyterhub_name,
-                            command=['start-daskworker.sh'],
-                            ports=[
-                                V1ContainerPort(
-                                    container_port=8786,
-                                    protocol='TCP'
-                                ),
-                                V1ContainerPort(
-                                    container_port=8787,
-                                    protocol='TCP'
-                                )
-                            ],
-                            resources=V1ResourceRequirements(
-                                limits={'memory':worker_memory}
-                            ),
-                            env=[
-                                V1EnvVar(
-                                    name='DASK_SCHEDULER_ADDRESS',
-                                    value='%s:8786' % scheduler_name
-                                )
-                            ]
-                        )
-                    ]
-                )
-            )
-        )
-    )
-
-    scheduler_deployment = V1DeploymentConfig(
-        kind='DeploymentConfig',
-        api_version='apps.openshift.io/v1',
-        metadata=V1ObjectMeta(
-            name=scheduler_name,
-            namespace=namespace,
-            labels={
-                'app': jupyterhub_name,
-                'component': 'dask-scheduler',
-                'dask-cluster': name
-            }
-        ),
-        spec=V1DeploymentConfigSpec(
-            strategy=V1DeploymentStrategy(
-                type='Recreate'
-            ),
-            triggers=[
-                V1DeploymentTriggerPolicy(
-                    type='ConfigChange'
-                ),
-                V1DeploymentTriggerPolicy(
-                    type='ImageChange',
-                    image_change_params=V1DeploymentTriggerImageChangeParams(
-                        automatic=True,
-                        container_names=['scheduler'],
-                        _from=V1ObjectReference(
-                            kind='ImageStreamTag',
-                            name='%s-notebook-img:latest' % jupyterhub_name
-                        )
-                    )
-                )
-            ],
-            replicas=1,
-            selector={
-                'app': jupyterhub_name,
-                'deploymentconfig': scheduler_name
-            },
-            template=V1PodTemplateSpec(
-                metadata = V1ObjectMeta(
-                    labels={
-                        'app': jupyterhub_name,
-                        'deploymentconfig': scheduler_name
-                    }
-                ),
-                spec=V1PodSpec(
-                    containers=[
-                        V1Container(
-                            name='scheduler',
-                            image='%s-notebook-img:latest' % jupyterhub_name,
-                            command=['start-daskscheduler.sh'],
-                            ports=[
-                                V1ContainerPort(
-                                    container_port=8786,
-                                    protocol='TCP'
-                                ),
-                                V1ContainerPort(
-                                    container_port=8787,
-                                    protocol='TCP'
-                                )
-                            ],
-                            resources=V1ResourceRequirements(
-                                limits={'memory':'256Mi'}
-                            ),
-                            env=[
-#                                V1EnvVar(
-#                                    name='DASK_SCHEDULER_ARGS',
-#                                    value='--bokeh-prefix /services/dask-monitor'
-#                                )
-                            ]
-                        )
-                    ]
-                )
-            )
-        )
-    )
-
-    scheduler_service = V1Service(
-        kind='Service',
-        api_version='v1',
-        metadata = V1ObjectMeta(
-            name=scheduler_name,
-            namespace=namespace,
-            labels={'app': jupyterhub_name}
-        ),
-        spec=V1ServiceSpec(
-            ports=[
-                V1ServicePort(
-                    name='8786-tcp',
-                    protocol='TCP',
-                    port=8786,
-                    target_port=8786
-                ),
-                V1ServicePort(
-                    name='8787-tcp',
-                    protocol='TCP',
-                    port=8787,
-                    target_port=8787
-                )
-            ],
-            selector={
-                'app': jupyterhub_name,
-                'deploymentconfig': scheduler_name
-            }
-        )
-    )
-
     try:
-        appsopenshiftiov1api.create_namespaced_deployment_config(
-                namespace, worker_deployment)
+        text = worker_deploymentconfig_template.safe_substitute(
+                namespace=namespace, name=worker_name,
+                application=jupyterhub_name, cluster=name,
+                scheduler=scheduler_name, replicas=worker_replicas,
+                memory=worker_memory)
+
+        body = json.loads(text)
+
+        deploymentconfig_resource.create(namespace=namespace, body=body)
 
     except ApiException as e:
         if e.status != 409:
@@ -380,8 +387,13 @@ def create_cluster(name):
         print('ERROR: Error creating worker deployment. %s' % e)
 
     try:
-        appsopenshiftiov1api.create_namespaced_deployment_config(
-                namespace, scheduler_deployment)
+        text = scheduler_deploymentconfig_template.safe_substitute(
+                namespace=namespace, name=scheduler_name,
+                application=jupyterhub_name, cluster=name)
+
+        body = json.loads(text)
+
+        deploymentconfig_resource.create(namespace=namespace, body=body)
 
     except ApiException as e:
         if e.status != 409:
@@ -391,8 +403,13 @@ def create_cluster(name):
         print('ERROR: Error creating scheduler deployment. %s' % e)
 
     try:
-        corev1api.create_namespaced_service(
-                namespace, scheduler_service)
+        text = scheduler_service_template.safe_substitute(
+                namespace=namespace, name=scheduler_name,
+                application=jupyterhub_name)
+
+        body = json.loads(text)
+
+        service_resource.create(namespace=namespace, body=body)
 
     except ApiException as e:
         if e.status != 409:
