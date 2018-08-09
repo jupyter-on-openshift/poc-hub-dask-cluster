@@ -9,6 +9,8 @@ from urllib.parse import quote
 from flask import Flask, redirect, request, Response, abort
 from flask import Blueprint, jsonify
 
+from wrapt import decorator
+
 from jupyterhub.services.auth import HubAuth
 
 os.environ['KUBERNETES_SERVICE_HOST'] = 'openshift.default.svc.cluster.local'
@@ -17,29 +19,28 @@ os.environ['KUBERNETES_SERVICE_PORT'] = '443'
 from openshift import config as oconfig
 from openshift import client as oclient
 
+from kubernetes.client.rest import ApiException
+
+from openshift.config import load_incluster_config
+from openshift.client.api_client import ApiClient
 from openshift.dynamic import DynamicClient, ResourceInstance
+from openshift.watch import Watch
 
 from openshift.client.models import (V1DeploymentConfig,
         V1DeploymentConfigSpec, V1DeploymentStrategy,
         V1DeploymentTriggerPolicy, V1DeploymentTriggerImageChangeParams)
 
-from kubernetes import client as kclient, watch as kwatch
+from kubernetes import client as kclient
 
 from kubernetes.client.models import (V1ObjectMeta,
         V1Service, V1ObjectReference, V1PodTemplateSpec, V1PodSpec,
         V1Container, V1ContainerPort, V1ResourceRequirements, V1EnvVar,
-        V1ServiceSpec, V1ServicePort, V1DeleteOptions)
-
-from kubernetes.client.rest import ApiException
-
-from wrapt import decorator
+        V1ServiceSpec, V1ServicePort)
 
 with open('/var/run/secrets/kubernetes.io/serviceaccount/namespace') as fp:
     namespace = fp.read().strip()
 
-oconfig.load_incluster_config()
-
-from kubernetes.client.api_client import ApiClient
+load_incluster_config()
 
 dyn_client = DynamicClient(ApiClient())
 
@@ -110,6 +111,8 @@ max_worker_replicas = int(os.environ.get('DASK_MAX_WORKER_REPLICAS', '0'))
 
 deploymentconfig_resource = dyn_client.resources.get(
         api_version='apps.openshift.io/v1', kind='DeploymentConfig')
+service_resource = dyn_client.resources.get(
+        api_version='v1', kind='Service')
 
 scale_template = string.Template("""
 {
@@ -424,7 +427,7 @@ def new_notebook_added(pod):
                 create_cluster(name)
 
 def monitor_pods():
-    watcher = kwatch.Watch()
+    watcher = Watch()
     for item in watcher.stream(pod_resource.get,
             namespace=namespace, timeout_seconds=0,
             serialize=False):
@@ -446,32 +449,36 @@ def cull_clusters():
 
     while True:
         try:
-            deployments = appsopenshiftiov1api.list_namespaced_deployment_config(
-                    namespace)
+            deployments = deploymentconfig_resource.get(namespace=namespace)
 
         except Exception as e:
             print('ERROR: Cannot query deployments.')
 
         else:
             for deployment in deployments.items:
-                labels = deployment.metadata.labels
-                if labels.get('component') == 'dask-scheduler':
-                    name = labels.get('dask-cluster', '')
-                    active_clusters.setdefault(name, None)
+                metadata = deployment.metadata
+                if metadata:
+                    labels = metadata.labels
+                    if labels['component'] == 'dask-scheduler':
+                        name = labels['dask-cluster']
+                        if name:
+                            active_clusters.setdefault(name, None)
 
         try:
-            pods = corev1api.list_namespaced_pod(namespace)
+            pods = pod_resource.get(namespace=namespace)
 
         except Exception as e:
             print('ERROR: Cannot query pods.')
 
         else:
             for pod in pods.items:
-                annotations = pod.metadata.annotations
-                name = annotations.get('jupyteronopenshift.org/dask-cluster')
+                metadata = pod.metadata
+                if metadata:
+                    annotations = metadata.annotations
+                    name = annotations['jupyteronopenshift.org/dask-cluster']
 
-                if name and name in active_clusters:
-                    del active_clusters[name]
+                    if name and name in active_clusters:
+                        del active_clusters[name]
 
         now = time.time()
 
@@ -488,8 +495,8 @@ def cull_clusters():
                     scheduler_name = '%s-scheduler-%s' % (dask_cluster_name, name)
 
                     try:
-                        appsopenshiftiov1api.delete_namespaced_deployment_config(
-                                scheduler_name, namespace, V1DeleteOptions())
+                        deploymentconfig_resource.delete(namespace=namespace,
+                                name=scheduler_name)
 
                     except ApiException as e:
                         if e.status != 404:
@@ -505,8 +512,8 @@ def cull_clusters():
                                 (scheduler_name, e))
 
                     try:
-                        corev1api.delete_namespaced_service(
-                                scheduler_name, namespace, V1DeleteOptions())
+                        service_resource.delete(namespace=namespace,
+                                name=scheduler_name)
 
                     except ApiException as e:
                         if e.status != 404:
@@ -524,8 +531,8 @@ def cull_clusters():
                     worker_name = '%s-worker-%s' % (dask_cluster_name, name)
 
                     try:
-                        appsopenshiftiov1api.delete_namespaced_deployment_config(
-                                worker_name, namespace, V1DeleteOptions())
+                        deploymentconfig_resource.delete(namespace=namespace,
+                                name=worker_name)
 
                     except ApiException as e:
                         if e.status != 404:
