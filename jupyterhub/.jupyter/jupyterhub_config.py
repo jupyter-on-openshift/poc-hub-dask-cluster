@@ -154,7 +154,9 @@ if dask_cluster_name and dask_api_token:
                 DASK_WORKER_MEMORY=worker_memory,
                 DASK_WORKER_REPLICAS=worker_replicas,
                 DASK_MAX_WORKER_REPLICAS=max_worker_replicas,
-                DASK_IDLE_CLUSTER_TIMEOUT=idle_cluster_timeout
+                DASK_IDLE_CLUSTER_TIMEOUT=idle_cluster_timeout,
+                KUBERNETES_SERVICE_HOST=os.environ['KUBERNETES_SERVICE_HOST'],
+                KUBERNETES_SERVICE_PORT=os.environ['KUBERNETES_SERVICE_PORT']
                 ),
         }
     ])

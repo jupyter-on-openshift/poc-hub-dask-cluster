@@ -13,9 +13,6 @@ from wrapt import decorator
 
 from jupyterhub.services.auth import HubAuth
 
-os.environ['KUBERNETES_SERVICE_HOST'] = 'openshift.default.svc.cluster.local'
-os.environ['KUBERNETES_SERVICE_PORT'] = '443'
-
 from kubernetes.client.rest import ApiException
 
 from openshift.config import load_incluster_config
