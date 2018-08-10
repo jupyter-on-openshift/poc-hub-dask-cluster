@@ -176,7 +176,17 @@ worker_deploymentconfig_template = string.Template("""
             "dask-cluster": "${cluster}"
         },
         "name": "${name}",
-        "namespace": "${namespace}"
+        "namespace": "${namespace}",
+        "ownerReferences": [
+            {
+                "apiVersion": "v1",
+                "controller": true,
+                "blockOwnerDeletion": false,
+                "kind": "Service",
+                "name": "${owner}",
+                "uid": "${owner_uid}"
+            }
+        ]
     },
     "spec": {
         "replicas": ${replicas},
@@ -261,7 +271,17 @@ scheduler_deploymentconfig_template = string.Template("""
             "dask-cluster": "${cluster}"
         },
         "name": "${name}",
-        "namespace": "${namespace}"
+        "namespace": "${namespace}",
+        "ownerReferences": [
+            {
+                "apiVersion": "v1",
+                "controller": true,
+                "blockOwnerDeletion": false,
+                "kind": "Service",
+                "name": "${owner}",
+                "uid": "${owner_uid}"
+            }
+        ]
     },
     "spec": {
         "replicas": 1,
@@ -369,11 +389,30 @@ def create_cluster(name):
     worker_name = '%s-worker-%s' % (dask_cluster_name, name)
 
     try:
+        text = scheduler_service_template.safe_substitute(
+                namespace=namespace, name=scheduler_name,
+                application=jupyterhub_name)
+
+        body = json.loads(text)
+
+        service = service_resource.create(namespace=namespace, body=body)
+
+    except ApiException as e:
+        if e.status != 409:
+            print('ERROR: Error creating service. %s' % e)
+            return
+
+    except Exception as e:
+        print('ERROR: Error creating service. %s' % e)
+        return
+
+    try:
         text = worker_deploymentconfig_template.safe_substitute(
                 namespace=namespace, name=worker_name,
                 application=jupyterhub_name, cluster=name,
                 scheduler=scheduler_name, replicas=worker_replicas,
-                memory=worker_memory)
+                memory=worker_memory, owner=service.metadata.name,
+                owner_uid=service.metadata.uid)
 
         body = json.loads(text)
 
@@ -389,7 +428,8 @@ def create_cluster(name):
     try:
         text = scheduler_deploymentconfig_template.safe_substitute(
                 namespace=namespace, name=scheduler_name,
-                application=jupyterhub_name, cluster=name)
+                application=jupyterhub_name, cluster=name,
+                owner=service.metadata.name, owner_uid=service.metadata.uid)
 
         body = json.loads(text)
 
@@ -401,22 +441,6 @@ def create_cluster(name):
 
     except Exception as e:
         print('ERROR: Error creating scheduler deployment. %s' % e)
-
-    try:
-        text = scheduler_service_template.safe_substitute(
-                namespace=namespace, name=scheduler_name,
-                application=jupyterhub_name)
-
-        body = json.loads(text)
-
-        service_resource.create(namespace=namespace, body=body)
-
-    except ApiException as e:
-        if e.status != 409:
-            print('ERROR: Error creating service. %s' % e)
-
-    except Exception as e:
-        print('ERROR: Error creating service. %s' % e)
 
 def cluster_exists(name):
     try:
@@ -511,58 +535,33 @@ def cull_clusters():
 
                     scheduler_name = '%s-scheduler-%s' % (dask_cluster_name, name)
 
-                    try:
-                        deploymentconfig_resource.delete(namespace=namespace,
-                                name=scheduler_name)
-
-                    except ApiException as e:
-                        if e.status != 404:
-                            okay = False
-
-                            print('ERROR: Could not delete scheduler %s: %s' %
-                                    (scheduler_name, e))
-
-                    except Exception as e:
-                        okay = False
-
-                        print('ERROR: Could not delete scheduler %s: %s' %
-                                (scheduler_name, e))
+                    # Only need to delete the service as deployments for
+                    # the scheduler and workers have owner reference set
+                    # to that for the service, so when delete the
+                    # service, the deployments will also be deleted.
 
                     try:
+                        delete_options = {
+                            "kind": "DeleteOptions",
+                            "apiVersion": "v1",
+                            "propagationPolicy": "Foreground"
+                        }
+
                         service_resource.delete(namespace=namespace,
-                                name=scheduler_name)
+                                name=scheduler_name, body=delete_options)
 
                     except ApiException as e:
                         if e.status != 404:
                             okay = False
 
-                            print('ERROR: Could not delete service %s: %s' %
+                            print('ERROR: Could not delete cluster %s: %s' %
                                     (scheduler_name, e))
 
                     except Exception as e:
                         okay = False
 
-                        print('ERROR: Could not delete service %s: %s' %
+                        print('ERROR: Could not delete cluster %s: %s' %
                                 (scheduler_name, e))
-
-                    worker_name = '%s-worker-%s' % (dask_cluster_name, name)
-
-                    try:
-                        deploymentconfig_resource.delete(namespace=namespace,
-                                name=worker_name)
-
-                    except ApiException as e:
-                        if e.status != 404:
-                            okay = False
-
-                            print('ERROR: Could not delete worker %s: %s' %
-                                    (worker_name, e))
-
-                    except Exception as e:
-                        okay = False
-
-                        print('ERROR: Could not delete worker %s: %s' %
-                                (worker_name, e))
 
                     if okay:
                         del active_clusters[name]
