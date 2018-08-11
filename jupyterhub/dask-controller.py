@@ -27,9 +27,6 @@ load_incluster_config()
 
 dyn_client = DynamicClient(ApiClient())
 
-deploymentconfig_resource = dyn_client.resources.get(
-        api_version='apps.openshift.io/v1', kind='DeploymentConfig')
-
 deployment_resource = dyn_client.resources.get(
         api_version='extensions/v1beta1', kind='Deployment')
 
@@ -86,7 +83,7 @@ def get_pods(name):
     details = []
 
     for pod in pods.items:
-        if pod.metadata.labels['deploymentconfig'] == dask_worker_name:
+        if pod.metadata.labels['deployment'] == dask_worker_name:
             details.append((pod.metadata.name, pod.status.phase))
 
     return details
@@ -130,7 +127,7 @@ def scale(user):
     body = json.loads(scale_template.safe_substitute(namespace=namespace,
             name=name, replicas=replicas))
 
-    deploymentconfig_resource.scale.replace(namespace=namespace, body=body)
+    deployment_resource.scale.replace(namespace=namespace, body=body)
 
     return jsonify()
 
@@ -155,7 +152,7 @@ def restart(user):
 
     body = json.loads(restart_template.safe_substitute(time=time.time()))
 
-    deploymentconfig_resource.patch(namespace=namespace, name=name, body=body)
+    deployment_resource.patch(namespace=namespace, name=name, body=body)
 
     return jsonify()
 
@@ -165,10 +162,10 @@ worker_replicas = int(os.environ.get('DASK_WORKER_REPLICAS', 3))
 worker_memory = os.environ.get('DASK_WORKER_MEMORY', '512Mi')
 idle_timeout = int(os.environ.get('DASK_IDLE_CLUSTER_TIMEOUT', 600))
 
-worker_deploymentconfig_template = string.Template("""
+worker_deployment_template = string.Template("""
 {
-    "apiVersion": "apps.openshift.io/v1",
-    "kind": "DeploymentConfig",
+    "apiVersion": "extensions/v1beta1",
+    "kind": "Deployment",
     "metadata": {
         "labels": {
             "app": "${application}",
@@ -191,36 +188,22 @@ worker_deploymentconfig_template = string.Template("""
     "spec": {
         "replicas": ${replicas},
         "selector": {
-            "app": "${application}",
-            "deploymentconfig": "${name}"
+            "matchLabels": {
+                "app": "${application}",
+                "deployment": "${name}"
+            }
         },
         "strategy": {
             "type": "Recreate"
         },
-        "triggers": [
-            {
-                "type": "ConfigChange"
-            },
-            {
-                "type": "ImageChange",
-                "imageChangeParams": {
-                    "automatic": true,
-                    "containerNames": [
-                        "worker"
-                    ],
-                    "from": {
-                        "kind": "ImageStreamTag",
-                        "name": "${application}-notebook-img:latest",
-                        "namespace": "${namespace}"
-                    }
-                }
-            }
-        ],
         "template": {
             "metadata": {
+                "annotations": {
+                    "alpha.image.policy.openshift.io/resolve-names": "*"
+                },
                 "labels": {
                     "app": "${application}",
-                    "deploymentconfig": "${name}"
+                    "deployment": "${name}"
                 }
             },
             "spec": {
@@ -288,7 +271,7 @@ scheduler_deployment_template = string.Template("""
         "selector": {
             "matchLabels": {
                 "app": "${application}",
-                "deploymentconfig": "${name}"
+                "deployment": "${name}"
             }
         },
         "strategy": {
@@ -301,7 +284,7 @@ scheduler_deployment_template = string.Template("""
                 },
                 "labels": {
                     "app": "${application}",
-                    "deploymentconfig": "${name}"
+                    "deployment": "${name}"
                 }
             },
             "spec": {
@@ -363,7 +346,7 @@ scheduler_service_template = string.Template("""
         ],
         "selector": {
             "app": "${application}",
-            "deploymentconfig": "${name}"
+            "deployment": "${name}"
         }
     }
 }
@@ -402,7 +385,7 @@ def create_cluster(name):
         return
 
     try:
-        text = worker_deploymentconfig_template.safe_substitute(
+        text = worker_deployment_template.safe_substitute(
                 namespace=namespace, name=worker_name,
                 application=jupyterhub_name, cluster=name,
                 scheduler=scheduler_name, replicas=worker_replicas,
@@ -411,7 +394,7 @@ def create_cluster(name):
 
         body = json.loads(text)
 
-        deploymentconfig_resource.create(namespace=namespace, body=body)
+        deployment_resource.create(namespace=namespace, body=body)
 
     except ApiException as e:
         if e.status != 409:
