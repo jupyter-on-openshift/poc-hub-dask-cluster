@@ -30,6 +30,9 @@ dyn_client = DynamicClient(ApiClient())
 deploymentconfig_resource = dyn_client.resources.get(
         api_version='apps.openshift.io/v1', kind='DeploymentConfig')
 
+deployment_resource = dyn_client.resources.get(
+        api_version='extensions/v1beta1', kind='Deployment')
+
 service_resource = dyn_client.resources.get(
         api_version='v1', kind='Service')
 
@@ -257,10 +260,10 @@ worker_deploymentconfig_template = string.Template("""
 }
 """)
 
-scheduler_deploymentconfig_template = string.Template("""
+scheduler_deployment_template = string.Template("""
 {
-    "apiVersion": "apps.openshift.io/v1",
-    "kind": "DeploymentConfig",
+    "apiVersion": "extensions/v1beta1",
+    "kind": "Deployment",
     "metadata": {
         "labels": {
             "app": "${application}",
@@ -283,33 +286,19 @@ scheduler_deploymentconfig_template = string.Template("""
     "spec": {
         "replicas": 1,
         "selector": {
-            "app": "${application}",
-            "deploymentconfig": "${name}"
+            "matchLabels": {
+                "app": "${application}",
+                "deploymentconfig": "${name}"
+            }
         },
         "strategy": {
             "type": "Recreate"
         },
-        "triggers": [
-            {
-                "type": "ConfigChange"
-            },
-            {
-                "type": "ImageChange",
-                "imageChangeParams": {
-                    "automatic": true,
-                    "containerNames": [
-                        "scheduler"
-                    ],
-                    "from": {
-                        "kind": "ImageStreamTag",
-                        "name": "${application}-notebook-img:latest",
-                        "namespace": "${namespace}"
-                    }
-                }
-            }
-        ],
         "template": {
             "metadata": {
+                "annotations": {
+                    "alpha.image.policy.openshift.io/resolve-names": "*"
+                },
                 "labels": {
                     "app": "${application}",
                     "deploymentconfig": "${name}"
@@ -399,6 +388,15 @@ def create_cluster(name):
             print('ERROR: Error creating service. %s' % e)
             return
 
+        else:
+            try:
+                service = service_resource.get(namespace=namespace,
+                        name=scheduler_name)
+
+            except Exception as e:
+                print('ERROR: Error querying service. %s' % e)
+                return
+
     except Exception as e:
         print('ERROR: Error creating service. %s' % e)
         return
@@ -423,14 +421,14 @@ def create_cluster(name):
         print('ERROR: Error creating worker deployment. %s' % e)
 
     try:
-        text = scheduler_deploymentconfig_template.safe_substitute(
+        text = scheduler_deployment_template.safe_substitute(
                 namespace=namespace, name=scheduler_name,
                 application=jupyterhub_name, cluster=name,
                 owner=service.metadata.name, owner_uid=service.metadata.uid)
 
         body = json.loads(text)
 
-        deploymentconfig_resource.create(namespace=namespace, body=body)
+        deployment_resource.create(namespace=namespace, body=body)
 
     except ApiException as e:
         if e.status != 409:
@@ -443,7 +441,7 @@ def cluster_exists(name):
     try:
         scheduler_name = '%s-scheduler-%s' % (dask_cluster_name, name)
 
-        deploymentconfig_resource.get(namespace=namespace, name=scheduler_name)
+        deployment_resource.get(namespace=namespace, name=scheduler_name)
 
     except ApiException as e:
         if e.status == 404:
@@ -487,7 +485,7 @@ def cull_clusters():
 
     while True:
         try:
-            deployments = deploymentconfig_resource.get(namespace=namespace)
+            deployments = deployment_resource.get(namespace=namespace)
 
         except Exception as e:
             print('ERROR: Cannot query deployments.')
